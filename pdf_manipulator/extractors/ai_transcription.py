@@ -16,7 +16,62 @@ from pdf_manipulator.core.exceptions import ExtractorError
 load_dotenv()
 
 
-class OllamaTranscriber:
+class BaseTranscriber:
+    """Base class for AI transcribers."""
+    
+    def transcribe_image(
+        self,
+        image_path: Union[str, Path],
+        prompt: str = "Transcribe all text in this document image to markdown format. Preserve layout and formatting as best as possible.",
+    ) -> str:
+        """Transcribe text from an image using AI model.
+        
+        Args:
+            image_path: Path to the image
+            prompt: Prompt for the model
+            
+        Returns:
+            Transcribed text
+            
+        Raises:
+            NotImplementedError: Must be implemented by subclasses
+        """
+        raise NotImplementedError("Subclasses must implement this method")
+    
+    def transcribe_text(
+        self,
+        text: str,
+        prompt_template: str = "Below is the OCR output from a document. Please correct any OCR errors and format the content in clean markdown:\n\n{text}\n\nCorrected markdown:",
+    ) -> str:
+        """Process text using an AI model.
+        
+        Args:
+            text: Text to process
+            prompt_template: Template for the prompt
+            
+        Returns:
+            Processed text
+            
+        Raises:
+            NotImplementedError: Must be implemented by subclasses
+        """
+        raise NotImplementedError("Subclasses must implement this method")
+    
+    def _encode_image(self, image_path: Union[str, Path]) -> str:
+        """Encode image to base64.
+        
+        Args:
+            image_path: Path to the image
+            
+        Returns:
+            Base64 encoded image
+        """
+        image_path = Path(image_path)
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode("utf-8")
+
+
+class OllamaTranscriber(BaseTranscriber):
     """Document transcriber using Ollama."""
     
     def __init__(
@@ -35,19 +90,6 @@ class OllamaTranscriber:
         self.model_name = model_name
         self.base_url = base_url
         self.timeout = timeout
-    
-    def _encode_image(self, image_path: Union[str, Path]) -> str:
-        """Encode image to base64.
-        
-        Args:
-            image_path: Path to the image
-            
-        Returns:
-            Base64 encoded image
-        """
-        image_path = Path(image_path)
-        with open(image_path, "rb") as image_file:
-            return base64.b64encode(image_file.read()).decode("utf-8")
     
     def transcribe_image(
         self,
@@ -95,7 +137,7 @@ class OllamaTranscriber:
             raise ExtractorError(f"Failed to transcribe image with Ollama: {e}")
 
 
-class LlamaTranscriber:
+class LlamaTranscriber(BaseTranscriber):
     """Document transcriber using llama.cpp."""
     
     def __init__(
@@ -190,12 +232,161 @@ class LlamaTranscriber:
             raise ExtractorError(f"Failed to transcribe text with llama.cpp: {e}")
 
 
+class LlamaCppHTTPTranscriber(BaseTranscriber):
+    """Document transcriber using llama.cpp HTTP server."""
+    
+    def __init__(
+        self,
+        base_url: str = "http://localhost:8080",
+        model_name: Optional[str] = None,
+        timeout: int = 120,
+        api_key: Optional[str] = None,
+        n_predict: int = 2048,
+        temperature: float = 0.1,
+    ):
+        """Initialize the llama.cpp HTTP transcriber.
+        
+        Args:
+            base_url: URL of the llama.cpp HTTP server
+            model_name: Name of the model to use
+            timeout: Request timeout in seconds
+            api_key: Optional API key for authentication
+            n_predict: Maximum tokens to predict
+            temperature: Sampling temperature
+        """
+        self.base_url = base_url
+        self.model_name = model_name
+        self.timeout = timeout
+        self.api_key = api_key or os.environ.get("LLAMA_API_KEY")
+        self.n_predict = n_predict
+        self.temperature = temperature
+    
+    def transcribe_image(
+        self,
+        image_path: Union[str, Path],
+        prompt: str = "Transcribe all text in this document image to markdown format. Preserve layout and formatting as best as possible.",
+    ) -> str:
+        """Transcribe text from an image using llama.cpp HTTP server.
+        
+        Args:
+            image_path: Path to the image
+            prompt: Prompt for the model
+            
+        Returns:
+            Transcribed text
+            
+        Raises:
+            ExtractorError: If transcription fails
+        """
+        image_path = Path(image_path)
+        
+        if not image_path.exists():
+            raise ExtractorError(f"Image file not found: {image_path}")
+        
+        try:
+            # Encode the image
+            base64_image = self._encode_image(image_path)
+            
+            # Prepare the request payload
+            payload = {
+                "prompt": prompt,
+                "image_data": [{"data": base64_image, "id": 0}],
+                "n_predict": self.n_predict,
+                "temperature": self.temperature,
+                "stream": False,
+            }
+            
+            # Add model name if specified
+            if self.model_name:
+                payload["model"] = self.model_name
+            
+            # Prepare headers
+            headers = {}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+            
+            # Send request to llama.cpp HTTP server
+            with httpx.Client(timeout=self.timeout) as client:
+                response = client.post(f"{self.base_url}/completion", json=payload, headers=headers)
+                response.raise_for_status()
+                result = response.json()
+            
+            # Extract the response based on llama.cpp HTTP API format
+            if "content" in result:
+                return result.get("content", "")
+            elif "completion" in result:
+                return result.get("completion", "")
+            else:
+                raise ExtractorError("Unexpected response format from llama.cpp HTTP server")
+        
+        except Exception as e:
+            raise ExtractorError(f"Failed to transcribe image with llama.cpp HTTP server: {e}")
+    
+    def transcribe_text(
+        self,
+        text: str,
+        prompt_template: str = "Below is the OCR output from a document. Please correct any OCR errors and format the content in clean markdown:\n\n{text}\n\nCorrected markdown:",
+        max_tokens: int = 1024,
+        temperature: Optional[float] = None,
+    ) -> str:
+        """Process text using llama.cpp HTTP server.
+        
+        Args:
+            text: Text to process
+            prompt_template: Template for the prompt
+            max_tokens: Maximum tokens to generate
+            temperature: Sampling temperature
+            
+        Returns:
+            Processed text
+            
+        Raises:
+            ExtractorError: If transcription fails
+        """
+        try:
+            prompt = prompt_template.format(text=text)
+            
+            # Prepare the request payload
+            payload = {
+                "prompt": prompt,
+                "n_predict": max_tokens,
+                "temperature": temperature if temperature is not None else self.temperature,
+                "stream": False,
+            }
+            
+            # Add model name if specified
+            if self.model_name:
+                payload["model"] = self.model_name
+            
+            # Prepare headers
+            headers = {}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+            
+            # Send request to llama.cpp HTTP server
+            with httpx.Client(timeout=self.timeout) as client:
+                response = client.post(f"{self.base_url}/completion", json=payload, headers=headers)
+                response.raise_for_status()
+                result = response.json()
+            
+            # Extract the response based on llama.cpp HTTP API format
+            if "content" in result:
+                return result.get("content", "")
+            elif "completion" in result:
+                return result.get("completion", "")
+            else:
+                raise ExtractorError("Unexpected response format from llama.cpp HTTP server")
+        
+        except Exception as e:
+            raise ExtractorError(f"Failed to transcribe text with llama.cpp HTTP server: {e}")
+
+
 class DocumentTranscriber:
     """Document transcriber for processing document images with AI."""
     
     def __init__(
         self,
-        transcriber: Union[OllamaTranscriber, LlamaTranscriber, Any],
+        transcriber: Union[OllamaTranscriber, LlamaTranscriber, LlamaCppHTTPTranscriber, Any],
         use_ocr_fallback: bool = True,
         ocr_fallback: Optional[Callable] = None,
     ):
@@ -247,17 +438,18 @@ class DocumentTranscriber:
                 
                 # First try AI transcription
                 try:
-                    if isinstance(self.transcriber, OllamaTranscriber):
+                    # Check if the transcriber has transcribe_image method
+                    if hasattr(self.transcriber, 'transcribe_image') and callable(getattr(self.transcriber, 'transcribe_image')):
                         default_prompt = "Transcribe all text in this document image to markdown format. Preserve layout including tables, lists, headings, and paragraphs."
                         text = self.transcriber.transcribe_image(image_path, prompt or default_prompt)
                     else:
-                        # For non-Ollama transcribers that can't handle images directly
+                        # For transcribers that can't handle images directly
                         # Use OCR fallback and then clean with LLM
                         if self.use_ocr_fallback and self.ocr_fallback:
                             ocr_text = self.ocr_fallback(image_path)
                             text = self.transcriber.transcribe_text(ocr_text)
                         else:
-                            raise ExtractorError("Non-image transcriber needs OCR fallback")
+                            raise ExtractorError("Transcriber needs OCR fallback to process images")
                 
                 except Exception as e:
                     if self.use_ocr_fallback and self.ocr_fallback:

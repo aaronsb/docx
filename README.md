@@ -4,9 +4,14 @@ A modular Python toolkit for document processing and analysis with AI capabiliti
 
 - Rendering PDF pages to PNG images
 - OCR text extraction from document images
-- AI-powered document transcription using local models (Ollama, llama.cpp)
+- AI-powered document transcription using local models with multiple backends:
+  - Ollama API (easy to use)
+  - llama.cpp direct integration (via Python bindings)
+  - llama.cpp HTTP server (custom builds/optimizations)
 - Table of contents generation with structured metadata
 - Markdown conversion for easy content reuse
+- Flexible configuration system with YAML format
+- Command-line interface with configuration management
 
 ## Installation
 
@@ -42,12 +47,37 @@ Required for OCR capabilities:
   2. Install and add to PATH
   3. Set TESSDATA_PREFIX environment variable to tessdata directory
 
-#### Ollama
+#### AI Backends
 
-Required for AI transcription:
+For AI transcription, you can use one of the following backends:
+
+##### Ollama (Recommended for ease of use)
 
 - Follow installation instructions at https://ollama.ai/
 - Pull a multimodal model: `ollama pull llava:latest`
+- Server runs on http://localhost:11434 by default
+
+##### llama.cpp Direct Integration
+
+- Requires the llama-cpp-python package: `pip install -e '.[llama]'`
+- Requires downloading model files manually
+- More configuration options, but can have build issues on some platforms
+
+##### llama.cpp HTTP Server (for custom optimized builds)
+
+- Build and run your own optimized llama.cpp server:
+  ```bash
+  git clone https://github.com/ggerganov/llama.cpp.git
+  cd llama.cpp
+  # Build with your custom optimization flags
+  make LLAMA_CUBLAS=1  # For NVIDIA GPU support
+  # or
+  make LLAMA_METAL=1  # For Apple Silicon
+  # Run the server with multimodal support
+  ./server -m path/to/model.gguf --multimodal-path /path/to/clip/model
+  ```
+- Server typically runs on http://localhost:8080
+- No need to install llama-cpp-python
 
 ## Dependencies
 
@@ -59,15 +89,66 @@ The toolkit has several dependency options:
 
 If you encounter build errors with `llama-cpp-python`, you can still use the toolkit with Ollama without installing this dependency.
 
+## Configuration
+
+The toolkit uses a flexible configuration system with YAML files. Configuration files can be created at:
+- Project-specific: `./.pdf_manipulator/config.yaml`
+- User-specific: `~/.config/pdf_manipulator/config.yaml`
+
+You can manage configuration files using:
+
+```bash
+# List available configuration files
+docaitool config --list
+
+# Create/update user configuration
+docaitool config --user
+
+# Create/update project-specific configuration
+docaitool config --project
+
+# Open configuration in default editor
+docaitool config --editor
+```
+
+For detailed configuration documentation, see [Configuration Guide](docs/configuration.md).
+
 ## Usage
+
+### Quick Start
+
+The tool uses a simple, intuitive command structure:
+
+```bash
+# Run first-time setup (optional - runs automatically if needed)
+pdfx-setup
+
+# Simple command format: verb input [output] [options]
+pdfx render document.pdf images/        # Convert PDF to images
+pdfx ocr image.png                      # Extract text with OCR
+pdfx transcribe image.png               # Transcribe image with AI
+pdfx extract document.pdf output/       # Extract structured content
+pdfx process document.pdf output/       # Full intelligent processing
+pdfx info document.pdf                  # Show document information
+```
 
 ### Command Line Interface
 
 **Process a complete document:**
 
 ```bash
-# Process a PDF with AI transcription (using Ollama)
+# Process a PDF with Ollama (default)
 docaitool process document.pdf output_directory/ --model llava:latest
+
+# Process with llama.cpp HTTP server backend
+docaitool process document.pdf output_directory/ \
+  --backend llama_cpp_http \
+  --model llava
+
+# Process with direct llama.cpp integration
+docaitool process document.pdf output_directory/ \
+  --backend llama_cpp \
+  --model-path /path/to/model.gguf
 
 # Process specific pages only
 docaitool process document.pdf output_directory/ --pages 0,1,2
@@ -102,8 +183,16 @@ docaitool ocr image.png --tessdata-dir /usr/share/tessdata
 **Transcribe an image with AI:**
 
 ```bash
-# Transcribe an image using Ollama
+# Transcribe an image using Ollama (default)
 docaitool transcribe image.png --model llava:latest --output transcription.md
+
+# Transcribe using llama.cpp HTTP server
+docaitool transcribe image.png \
+  --backend llama_cpp_http \
+  --output transcription.md
+
+# Transcribe with custom prompt
+docaitool transcribe image.png --prompt "Extract tables from this image as markdown"
 ```
 
 **Display PDF information:**
@@ -116,14 +205,25 @@ docaitool info document.pdf
 docaitool info document.pdf --no-show-toc
 ```
 
+**List AI intelligence backends:**
+
+```bash
+# List available and configured intelligence backends
+docaitool intelligence --list
+```
+
 ### Python API
 
 ```python
 from pdf_manipulator.core.document import PDFDocument
 from pdf_manipulator.renderers.image_renderer import ImageRenderer
 from pdf_manipulator.extractors.ocr import OCRProcessor
-from pdf_manipulator.extractors.ai_transcription import OllamaTranscriber, DocumentTranscriber
+from pdf_manipulator.utils.config import load_config
+from pdf_manipulator.intelligence.processor import create_processor
 from pdf_manipulator.core.pipeline import DocumentProcessor
+
+# Load configuration
+config = load_config()  # Loads from default locations
 
 # Basic PDF rendering
 with PDFDocument("document.pdf") as doc:
@@ -131,37 +231,61 @@ with PDFDocument("document.pdf") as doc:
     renderer.render_page_to_png(
         page_number=0,
         output_path="page0.png",
-        dpi=300,
+        dpi=config.get('rendering', {}).get('dpi', 300),
     )
 
-# OCR processing with custom Tesseract path
+# OCR processing with configuration
 ocr = OCRProcessor(
-    language="eng",
-    tessdata_dir="/usr/share/tessdata",  # Specify if needed
-    tesseract_cmd="/usr/bin/tesseract",  # Specify if needed
+    language=config.get('ocr', {}).get('language', 'eng'),
+    tessdata_dir=config.get('ocr', {}).get('tessdata_dir'),
+    tesseract_cmd=config.get('ocr', {}).get('tesseract_cmd'),
 )
 text = ocr.extract_text("page0.png")
 
-# AI transcription with Ollama
-transcriber = OllamaTranscriber(model_name="llava:latest")
-text = transcriber.transcribe_image(
-    "page0.png",
-    prompt="Transcribe this document page to markdown format."
+# AI transcription using intelligence backends
+# Create a processor with the configured backend (or specific backend)
+processor = create_processor(
+    config=config,
+    ocr_processor=ocr,
+    backend_name="ollama",  # Optional - uses default from config if not specified
 )
+
+# Process an image with AI
+text = processor.process_image(
+    "page0.png",
+    custom_prompt="Transcribe this document page to markdown format."
+)
+
+# Process text with AI
+cleaned_text = processor.process_text(
+    ocr_text,
+    custom_prompt_template="Clean this OCR text: {text}"
+)
+
+# Alternative: Access direct backend API for more control
+# You can still use the direct API if needed
+from pdf_manipulator.intelligence.ollama import OllamaBackend
+from pdf_manipulator.intelligence.llama_cpp import LlamaCppBackend
+from pdf_manipulator.intelligence.llama_cpp_http import LlamaCppHttpBackend
+
+# Create backend from config section
+ollama_config = config.get('intelligence', {}).get('backends', {}).get('ollama', {})
+ollama = OllamaBackend(ollama_config)
+text = ollama.transcribe_image("page0.png")
 
 # Complete document processing pipeline
-processor = DocumentProcessor(
-    output_dir="output/",
-    renderer_kwargs={"dpi": 300},
+document_processor = DocumentProcessor(
+    output_dir=config.get('general', {}).get('output_dir', 'output'),
+    renderer_kwargs={
+        "dpi": config.get('rendering', {}).get('dpi', 300),
+        "alpha": config.get('rendering', {}).get('alpha', False),
+        "zoom": config.get('rendering', {}).get('zoom', 1.0),
+    },
     ocr_processor=ocr,
-    ai_transcriber=DocumentTranscriber(
-        transcriber=transcriber,
-        use_ocr_fallback=True,
-        ocr_fallback=ocr.extract_text,
-    ),
+    ai_transcriber=processor,
 )
 
-toc = processor.process_pdf("document.pdf", use_ai=True)
+toc = document_processor.process_pdf("document.pdf", use_ai=True)
 ```
 
 ## Tesseract Configuration

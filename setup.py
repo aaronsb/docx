@@ -17,6 +17,7 @@ install_requires = [
     "httpx>=0.24.0",
     "langchain>=0.0.270",
     "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
 ]
 
 # Optional dependencies
@@ -32,9 +33,13 @@ setup(
     extras_require=extras_require,
     entry_points={
         "console_scripts": [
-            "docaitool=pdf_manipulator.cli.commands:cli",
+            "pdfx=pdf_manipulator.cli.commands:cli",  # Primary command (PDF extractor)
+            "docaitool=pdf_manipulator.cli.commands:cli",  # Original for compatibility
         ],
     },
+    scripts=[
+        "scripts/pdfx-setup",  # Configuration wizard
+    ],
     author="Document AI Toolkit Team",
     description="A toolkit for document processing and analysis with AI",
     classifiers=[

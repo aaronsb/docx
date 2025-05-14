@@ -268,7 +268,11 @@ class DocumentProcessor:
                 
                 elif self.ocr_processor:
                     # Process with OCR only
-                    toc = self.ocr_processor.analyze_document_pages(
+                    # Create a DocumentAnalyzer from the OCR processor
+                    from pdf_manipulator.extractors.ocr import DocumentAnalyzer
+                    analyzer = DocumentAnalyzer(self.ocr_processor)
+                    
+                    toc = analyzer.analyze_document_pages(
                         image_paths=image_paths,
                         output_dir=markdown_dir,
                         base_filename=base_filename,

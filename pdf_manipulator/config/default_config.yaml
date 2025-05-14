@@ -1,0 +1,126 @@
+# PDF Manipulator Configuration
+#
+# This file defines the settings for the PDF Manipulator toolkit.
+# You can customize settings by editing this file or creating your own configuration.
+#
+# Location hierarchy (in order of precedence):
+# 1. Custom path (specified with --config option)
+# 2. Project configuration (./.pdf_manipulator/config.yaml)
+# 3. User configuration (~/.config/pdf_manipulator/config.yaml)
+# 4. System default (this file)
+
+# General settings
+general:
+  # Default output directory for processed files
+  output_dir: "output"
+  
+  # Logging configuration
+  logging:
+    # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+    level: "INFO"
+    # Log file path (set to null for console only)
+    file: null
+
+# PDF rendering settings
+rendering:
+  # Resolution in DPI (dots per inch)
+  # Higher values produce larger, more detailed images
+  # Recommended: 150 for low quality, 300 for standard, 600 for high quality
+  dpi: 300
+  
+  # Include alpha channel (transparency) in rendered images
+  # Enables transparency but increases file size
+  alpha: false
+  
+  # Additional zoom factor for rendering
+  # Values > 1.0 increase size, < 1.0 decrease size
+  zoom: 1.0
+
+# OCR (Optical Character Recognition) settings
+ocr:
+  # OCR language(s) to use with Tesseract
+  # Common values: eng (English), deu (German), fra (French), rus (Russian)
+  # For multiple languages, use "eng+fra" format
+  # See https://tesseract-ocr.github.io/tessdoc/Data-Files-in-different-versions.html for available languages
+  language: "eng"
+  
+  # Path to tessdata directory containing language data files
+  # If null, will use default Tesseract locations or TESSDATA_PREFIX environment variable
+  # Example: /usr/share/tesseract-ocr/4.00/tessdata
+  tessdata_dir: null
+  
+  # Path to tesseract executable
+  # If null, will search in PATH
+  # Example: /usr/bin/tesseract
+  tesseract_cmd: null
+
+# AI intelligence configuration
+intelligence:
+  # Default backend to use for AI processing
+  # Available options: ollama, llama_cpp, llama_cpp_http
+  default_backend: "ollama"
+  
+  # Configuration for different intelligence backends
+  backends:
+    # Ollama API backend (easiest to set up)
+    # Requires Ollama to be installed and running
+    # See https://ollama.ai for installation instructions
+    ollama:
+      # Model to use (must be a multimodal model for image processing)
+      # Common choices: llava:latest, bakllava:latest, llava-llama3
+      # Pull models with: ollama pull llava:latest
+      model: "llava:latest"
+      
+      # Ollama API URL
+      # Default is http://localhost:11434 for local Ollama installation
+      base_url: "http://localhost:11434"
+      
+      # Timeout in seconds for API requests
+      timeout: 120
+    
+    # Direct llama.cpp integration via Python bindings
+    # Requires llama-cpp-python package
+    # Install with: pip install -e '.[llama]'
+    llama_cpp:
+      # Path to the model file (.gguf format)
+      # Download models from https://huggingface.co/models
+      # Example: /home/user/models/llama-7b.gguf
+      model_path: null
+      
+      # Context window size in tokens
+      # Larger values allow processing more text at once but use more memory
+      n_ctx: 2048
+      
+      # Number of layers to offload to GPU (-1 for all layers)
+      # Set to 0 to use CPU only
+      n_gpu_layers: -1
+    
+    # llama.cpp HTTP server backend
+    # For custom compiled llama.cpp with optimizations
+    # Run server with: ./server -m model.gguf --multimodal-path /path/to/clip
+    llama_cpp_http:
+      # Server URL
+      # Default port is 8080 for llama.cpp server
+      base_url: "http://localhost:8080"
+      
+      # Model name (only needed if server hosts multiple models)
+      # Leave as null if server only has one model
+      model: null
+      
+      # Timeout in seconds for API requests
+      timeout: 120
+      
+      # Maximum tokens to predict in the response
+      n_predict: 2048
+      
+      # Temperature for sampling (0.0-1.0)
+      # Lower values are more deterministic, higher values more creative
+      temperature: 0.1
+
+# Document processing settings
+processing:
+  # Default prompt for AI transcription of document images
+  default_prompt: "Transcribe all text in this document image to markdown format. Preserve layout including tables, lists, headings, and paragraphs."
+  
+  # Whether to use OCR as fallback when AI transcription fails
+  use_ocr_fallback: true
