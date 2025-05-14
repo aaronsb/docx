@@ -94,10 +94,17 @@ def info(pdf_path: str):
 @cli.command()
 @click.argument('image_path', type=click.Path(exists=True))
 @click.option('--lang', type=str, default='eng', help='OCR language')
+@click.option('--tessdata-dir', type=click.Path(exists=True), help='Tesseract data directory')
+@click.option('--tesseract-cmd', type=click.Path(exists=True), help='Path to tesseract executable')
 @click.option('--output', type=click.Path(), help='Output file (default: print to console)')
-def ocr(image_path: str, lang: str, output: Optional[str]):
+def ocr(image_path: str, lang: str, tessdata_dir: Optional[str], tesseract_cmd: Optional[str], output: Optional[str]):
     """Extract text from an image using OCR."""
-    processor = OCRProcessor(language=lang)
+    # Initialize OCR processor with provided configuration
+    processor = OCRProcessor(
+        language=lang,
+        tesseract_cmd=tesseract_cmd,
+        tessdata_dir=tessdata_dir,
+    )
     
     try:
         text = processor.extract_text(image_path)
@@ -123,6 +130,8 @@ def ocr(image_path: str, lang: str, output: Optional[str]):
 @click.option('--model', type=str, default='llava:latest', help='AI model name (for Ollama)')
 @click.option('--dpi', type=int, default=300, help='Rendering DPI')
 @click.option('--lang', type=str, default='eng', help='OCR language')
+@click.option('--tessdata-dir', type=click.Path(exists=True), help='Tesseract data directory')
+@click.option('--tesseract-cmd', type=click.Path(exists=True), help='Path to tesseract executable')
 @click.option('--pages', type=str, help='Pages to process (comma-separated, 0-based)')
 def process(
     pdf_path: str,
@@ -131,6 +140,8 @@ def process(
     model: str,
     dpi: int,
     lang: str,
+    tessdata_dir: Optional[str],
+    tesseract_cmd: Optional[str],
     pages: Optional[str],
 ):
     """Process a PDF document through the complete pipeline."""
@@ -147,7 +158,11 @@ def process(
             return
 
     # Initialize processors
-    ocr_processor = OCRProcessor(language=lang)
+    ocr_processor = OCRProcessor(
+        language=lang,
+        tesseract_cmd=tesseract_cmd,
+        tessdata_dir=tessdata_dir,
+    )
     
     # Initialize AI transcriber if requested
     ai_transcriber = None

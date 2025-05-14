@@ -24,9 +24,30 @@ pip install -e '.[llama]'
 
 ## Prerequisites
 
+### Required
+
 - Python 3.8+
-- Tesseract OCR (optional but recommended for OCR capabilities)
-- Ollama with a multimodal model like llava (optional but recommended for AI transcription)
+
+### Optional but Recommended
+
+#### Tesseract OCR
+
+Required for OCR capabilities:
+
+- **Arch Linux**: `sudo pacman -S tesseract tesseract-data-eng` (or other language packs)
+- **Ubuntu/Debian**: `sudo apt-get install -y tesseract-ocr tesseract-ocr-eng`
+- **macOS**: `brew install tesseract tesseract-lang`
+- **Windows**: 
+  1. Download installer from https://github.com/UB-Mannheim/tesseract/wiki
+  2. Install and add to PATH
+  3. Set TESSDATA_PREFIX environment variable to tessdata directory
+
+#### Ollama
+
+Required for AI transcription:
+
+- Follow installation instructions at https://ollama.ai/
+- Pull a multimodal model: `ollama pull llava:latest`
 
 ## Dependencies
 
@@ -53,6 +74,9 @@ docaitool process document.pdf output_directory/ --pages 0,1,2
 
 # Process with OCR only (no AI)
 docaitool process document.pdf output_directory/ --no-ai
+
+# Specify Tesseract data directory if needed
+docaitool process document.pdf output_directory/ --tessdata-dir /usr/share/tessdata
 ```
 
 **Render PDF pages to PNG images:**
@@ -70,6 +94,9 @@ docaitool render document.pdf output_directory/ --page 0 --dpi 300
 ```bash
 # Extract text from an image using OCR
 docaitool ocr image.png --output text.txt
+
+# Specify Tesseract data directory if needed
+docaitool ocr image.png --tessdata-dir /usr/share/tessdata
 ```
 
 **Transcribe an image with AI:**
@@ -103,8 +130,12 @@ with PDFDocument("document.pdf") as doc:
         dpi=300,
     )
 
-# OCR processing
-ocr = OCRProcessor(language="eng")
+# OCR processing with custom Tesseract path
+ocr = OCRProcessor(
+    language="eng",
+    tessdata_dir="/usr/share/tessdata",  # Specify if needed
+    tesseract_cmd="/usr/bin/tesseract",  # Specify if needed
+)
 text = ocr.extract_text("page0.png")
 
 # AI transcription with Ollama
@@ -128,6 +159,16 @@ processor = DocumentProcessor(
 
 toc = processor.process_pdf("document.pdf", use_ai=True)
 ```
+
+## Tesseract Configuration
+
+If you encounter Tesseract errors, they may be due to:
+
+1. **Missing language data** - Ensure the language pack (e.g., 'eng') is installed
+2. **Incorrect Tesseract data path** - Set through one of these methods:
+   - Use the `--tessdata-dir` CLI option
+   - Set the `TESSDATA_PREFIX` environment variable: `export TESSDATA_PREFIX=/usr/share/tessdata`
+   - In Python code: `OCRProcessor(tessdata_dir="/usr/share/tessdata")`
 
 ## Output Structure
 
