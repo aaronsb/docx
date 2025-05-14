@@ -75,7 +75,8 @@ def render(
 
 @cli.command()
 @click.argument('pdf_path', type=click.Path(exists=True))
-def info(pdf_path: str):
+@click.option('--show-toc/--no-show-toc', default=True, help='Display table of contents')
+def info(pdf_path: str, show_toc: bool):
     """Display information about a PDF file."""
     with PDFDocument(pdf_path) as doc:
         click.echo(f"File: {pdf_path}")
@@ -89,6 +90,17 @@ def info(pdf_path: str):
         if doc.page_count > 0:
             width, height = doc.get_page_dimensions(0)
             click.echo(f"Page dimensions: {width:.2f} x {height:.2f} points")
+        
+        # Display table of contents if available
+        toc = doc.get_toc()
+        if toc and show_toc:
+            click.echo("\nTable of Contents:")
+            for entry in toc:
+                # Create indented display for hierarchical TOC
+                indent = "  " * (entry["level"] - 1)
+                click.echo(f"{indent}- {entry['title']} (page {entry['page']})")
+        elif show_toc:
+            click.echo("\nNo table of contents found in document.")
 
 
 @cli.command()

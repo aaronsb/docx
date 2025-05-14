@@ -114,6 +114,10 @@ class DocumentProcessor:
         try:
             # Open PDF and render pages to images
             with PDFDocument(pdf_path) as doc:
+                # Extract the document's native table of contents
+                native_toc = doc.get_toc()
+                has_native_toc = len(native_toc) > 0
+                
                 renderer = ImageRenderer(doc)
                 
                 # Determine pages to process
@@ -157,6 +161,16 @@ class DocumentProcessor:
                 
                 else:
                     raise PDFManipulatorError("No OCR or AI processor available")
+                
+                # Add native document TOC to the output if available
+                if has_native_toc:
+                    toc["native_toc"] = native_toc
+                    toc["has_native_toc"] = True
+                else:
+                    toc["has_native_toc"] = False
+                
+                # Add document metadata
+                toc["metadata"] = doc.metadata
                 
                 # Save TOC to JSON file
                 toc_path = doc_dir / f"{base_filename}_contents.json"

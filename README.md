@@ -109,7 +109,11 @@ docaitool transcribe image.png --model llava:latest --output transcription.md
 **Display PDF information:**
 
 ```bash
+# Show PDF info including the table of contents
 docaitool info document.pdf
+
+# Show PDF info but hide the table of contents
+docaitool info document.pdf --no-show-toc
 ```
 
 ### Python API
@@ -203,7 +207,29 @@ The contents.json file follows this structure:
       "word_count": 245
     },
     ...
-  ]
+  ],
+  "has_native_toc": true,
+  "native_toc": [
+    {
+      "level": 1,
+      "title": "Chapter 1: Introduction",
+      "page": 1,
+      "page_index": 0
+    },
+    {
+      "level": 2,
+      "title": "1.1 Background",
+      "page": 2,
+      "page_index": 1
+    },
+    ...
+  ],
+  "metadata": {
+    "title": "Example Document",
+    "author": "Document AI Toolkit",
+    "subject": "PDF Processing",
+    "creator": "PyMuPDF"
+  }
 }
 ```
 

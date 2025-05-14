@@ -88,3 +88,51 @@ class PDFDocument:
             return page.get_text()
         
         return "".join(page.get_text() for page in self.doc)
+    
+    def get_toc(self) -> List[Dict[str, Any]]:
+        """Extract the table of contents (document outline) from the PDF.
+        
+        Returns:
+            List of TOC entries, each with title, page number, and level.
+            Empty list if no TOC exists.
+            
+        Example output:
+            [
+                {"title": "Chapter 1", "page": 1, "level": 1},
+                {"title": "Section 1.1", "page": 2, "level": 2},
+                {"title": "Chapter 2", "page": 10, "level": 1}
+            ]
+        """
+        try:
+            # Get raw TOC data (list of tuples)
+            raw_toc = self.doc.get_toc()
+            
+            # Process each TOC entry
+            processed_toc = []
+            for entry in raw_toc:
+                level, title, page = entry[:3]
+                
+                # Format the entry (PyMuPDF page numbers are 1-based)
+                processed_entry = {
+                    "level": level,
+                    "title": title,
+                    "page": page,  # 1-based page number
+                    "page_index": page - 1,  # 0-based page index
+                }
+                
+                processed_toc.append(processed_entry)
+            
+            return processed_toc
+        
+        except Exception as e:
+            # If extraction fails, return empty list rather than raising an error
+            # This is because not all PDFs have a TOC
+            return []
+    
+    def has_toc(self) -> bool:
+        """Check if the document has a table of contents.
+        
+        Returns:
+            True if the document has a TOC, False otherwise
+        """
+        return len(self.get_toc()) > 0
