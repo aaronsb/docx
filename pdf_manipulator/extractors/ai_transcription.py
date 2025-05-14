@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any, Callable
 import base64
+import importlib.util
 
 import httpx
 from dotenv import load_dotenv
@@ -114,9 +115,19 @@ class LlamaTranscriber:
         self.n_ctx = n_ctx
         self.n_gpu_layers = n_gpu_layers
         self._llm = None
+        
+        # Check if llama_cpp is available
+        self._has_llama_cpp = importlib.util.find_spec("llama_cpp") is not None
+        if not self._has_llama_cpp:
+            print("Warning: llama-cpp-python not installed. Install with: pip install llama-cpp-python")
     
     def _load_model(self):
         """Load the LLM model."""
+        if not self._has_llama_cpp:
+            raise ExtractorError(
+                "llama-cpp-python not installed. Install with: pip install llama-cpp-python or pip install 'doc_ai_toolkit[llama]'"
+            )
+        
         try:
             from llama_cpp import Llama
             
@@ -135,7 +146,7 @@ class LlamaTranscriber:
             )
         
         except ImportError:
-            raise ExtractorError("llama-cpp-python not installed. Install with 'pip install llama-cpp-python'.")
+            raise ExtractorError("llama-cpp-python not installed correctly. Try reinstalling with: pip install llama-cpp-python")
         except Exception as e:
             raise ExtractorError(f"Failed to load LLM model: {e}")
     

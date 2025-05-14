@@ -15,8 +15,11 @@ A modular Python toolkit for document processing and analysis with AI capabiliti
 git clone https://github.com/yourusername/doc_ai_toolkit.git
 cd doc_ai_toolkit
 
-# Install the package
+# Standard installation
 pip install -e .
+
+# If you want to use llama.cpp (optional)
+pip install -e '.[llama]'
 ```
 
 ## Prerequisites
@@ -24,6 +27,16 @@ pip install -e .
 - Python 3.8+
 - Tesseract OCR (optional but recommended for OCR capabilities)
 - Ollama with a multimodal model like llava (optional but recommended for AI transcription)
+
+## Dependencies
+
+The toolkit has several dependency options:
+
+- **Core Dependencies**: Always installed (PyMuPDF, pytesseract, etc.)
+- **Optional Dependencies**:
+  - `llama-cpp-python`: For using llama.cpp models directly (install with `pip install -e '.[llama]'`)
+
+If you encounter build errors with `llama-cpp-python`, you can still use the toolkit with Ollama without installing this dependency.
 
 ## Usage
 
@@ -170,14 +183,6 @@ doc_ai_toolkit/
 └── cli/                # Command line interface
     └── commands.py     # CLI commands
 ```
-
-## Dependencies
-
-- PyMuPDF (fitz): Fast PDF rendering and manipulation
-- Tesseract (pytesseract): OCR capabilities
-- Ollama: Local AI model serving
-- Pillow: Image processing
-- Click: Command line interface
 
 ## License
 
