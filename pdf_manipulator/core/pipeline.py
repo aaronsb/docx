@@ -1,12 +1,106 @@
 """Document processing pipeline."""
 import os
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any, Callable
 import json
+from datetime import datetime
 
 from pdf_manipulator.core.document import PDFDocument
 from pdf_manipulator.renderers.image_renderer import ImageRenderer
 from pdf_manipulator.core.exceptions import PDFManipulatorError
+
+
+class PerformanceTimer:
+    """Simple timer for tracking performance metrics."""
+    
+    def __init__(self):
+        """Initialize the performance timer."""
+        self.start_time = time.time()
+        self.steps = []
+        self.step_durations = {}
+        self.current_step = None
+        self.current_step_start = None
+        
+    def start_step(self, step_name: str):
+        """Start timing a processing step.
+        
+        Args:
+            step_name: Name of the processing step
+        """
+        # If we're already in a step, end it first
+        if self.current_step:
+            self.end_step()
+            
+        self.current_step = step_name
+        self.current_step_start = time.time()
+        self.steps.append(step_name)
+    
+    def end_step(self):
+        """End timing the current step."""
+        if self.current_step and self.current_step_start:
+            duration = time.time() - self.current_step_start
+            
+            # Store the step duration
+            if self.current_step in self.step_durations:
+                self.step_durations[self.current_step] += duration
+            else:
+                self.step_durations[self.current_step] = duration
+                
+            self.current_step = None
+            self.current_step_start = None
+    
+    def get_total_duration(self) -> float:
+        """Get the total duration of all processing.
+        
+        Returns:
+            Total duration in seconds
+        """
+        return time.time() - self.start_time
+    
+    def get_summary(self) -> Dict[str, Any]:
+        """Get a summary of the performance metrics.
+        
+        Returns:
+            Dictionary with performance metrics
+        """
+        # End any open step
+        if self.current_step:
+            self.end_step()
+            
+        total_duration = self.get_total_duration()
+        
+        return {
+            "total_duration_seconds": total_duration,
+            "total_duration_formatted": self._format_time(total_duration),
+            "steps": self.step_durations,
+            "steps_formatted": {step: self._format_time(duration) 
+                               for step, duration in self.step_durations.items()},
+            "timestamp": datetime.now().isoformat(),
+        }
+    
+    @staticmethod
+    def _format_time(seconds: float) -> str:
+        """Format time in seconds to a human-readable string.
+        
+        Args:
+            seconds: Time in seconds
+            
+        Returns:
+            Formatted time string
+        """
+        if seconds < 60:
+            return f"{seconds:.2f}s"
+        elif seconds < 3600:
+            minutes = int(seconds // 60)
+            remaining_seconds = seconds % 60
+            return f"{minutes}m {remaining_seconds:.2f}s"
+        else:
+            hours = int(seconds // 3600)
+            remaining = seconds % 3600
+            minutes = int(remaining // 60)
+            remaining_seconds = remaining % 60
+            return f"{hours}h {minutes}m {remaining_seconds:.2f}s"
 
 
 class DocumentPipeline:
@@ -98,6 +192,10 @@ class DocumentProcessor:
         Raises:
             PDFManipulatorError: If processing fails
         """
+        # Initialize performance timer
+        timer = PerformanceTimer()
+        timer.start_step("initialization")
+        
         pdf_path = Path(pdf_path)
         base_filename = pdf_path.stem
         
@@ -111,13 +209,25 @@ class DocumentProcessor:
         os.makedirs(images_dir, exist_ok=True)
         os.makedirs(markdown_dir, exist_ok=True)
         
+        timer.end_step()
+        
         try:
-            # Open PDF and render pages to images
+            # Open PDF file
+            timer.start_step("pdf_loading")
             with PDFDocument(pdf_path) as doc:
                 # Extract the document's native table of contents
                 native_toc = doc.get_toc()
                 has_native_toc = len(native_toc) > 0
                 
+                # Track document stats
+                stats = {
+                    "total_pages": doc.page_count,
+                    "processed_pages": 0,
+                }
+                timer.end_step()
+                
+                # Initialize renderer
+                timer.start_step("rendering")
                 renderer = ImageRenderer(doc)
                 
                 # Determine pages to process
@@ -125,6 +235,8 @@ class DocumentProcessor:
                     pages_to_process = page_range
                 else:
                     pages_to_process = list(range(doc.page_count))
+                
+                stats["processed_pages"] = len(pages_to_process)
                 
                 # Render pages to images
                 image_paths = []
@@ -136,8 +248,10 @@ class DocumentProcessor:
                         **self.renderer_kwargs
                     )
                     image_paths.append(output_file)
+                timer.end_step()
                 
                 # Process images with OCR or AI
+                timer.start_step("transcription")
                 if use_ai and self.ai_transcriber:
                     # Get OCR function for fallback
                     ocr_func = None
@@ -150,6 +264,7 @@ class DocumentProcessor:
                         output_dir=markdown_dir,
                         base_filename=base_filename,
                     )
+                    stats["transcription_method"] = "ai"
                 
                 elif self.ocr_processor:
                     # Process with OCR only
@@ -158,11 +273,14 @@ class DocumentProcessor:
                         output_dir=markdown_dir,
                         base_filename=base_filename,
                     )
+                    stats["transcription_method"] = "ocr"
                 
                 else:
                     raise PDFManipulatorError("No OCR or AI processor available")
+                timer.end_step()
                 
                 # Add native document TOC to the output if available
+                timer.start_step("finalization")
                 if has_native_toc:
                     toc["native_toc"] = native_toc
                     toc["has_native_toc"] = True
@@ -172,12 +290,53 @@ class DocumentProcessor:
                 # Add document metadata
                 toc["metadata"] = doc.metadata
                 
+                # Add performance metrics to output
+                performance = timer.get_summary()
+                toc["performance"] = performance
+                toc["stats"] = stats
+                
+                # Calculate average time per page
+                if stats["processed_pages"] > 0:
+                    render_time = performance["steps"].get("rendering", 0)
+                    transcription_time = performance["steps"].get("transcription", 0)
+                    
+                    toc["performance"]["avg_render_time_per_page"] = render_time / stats["processed_pages"]
+                    toc["performance"]["avg_transcription_time_per_page"] = transcription_time / stats["processed_pages"]
+                    
+                    toc["performance"]["avg_render_time_per_page_formatted"] = timer._format_time(
+                        render_time / stats["processed_pages"]
+                    )
+                    toc["performance"]["avg_transcription_time_per_page_formatted"] = timer._format_time(
+                        transcription_time / stats["processed_pages"]
+                    )
+                
                 # Save TOC to JSON file
                 toc_path = doc_dir / f"{base_filename}_contents.json"
                 with open(toc_path, 'w', encoding='utf-8') as f:
                     json.dump(toc, f, indent=2)
+                timer.end_step()
                 
                 return toc
         
         except Exception as e:
+            # Record the error in performance metrics
+            timer.start_step("error_handling")
+            performance = timer.get_summary()
+            timer.end_step()
+            
+            # Can still try to save performance data even if processing failed
+            try:
+                error_stats = {
+                    "performance": performance,
+                    "error": str(e),
+                    "status": "failed"
+                }
+                
+                # Try to save error stats
+                error_path = doc_dir / f"{base_filename}_error_stats.json"
+                with open(error_path, 'w', encoding='utf-8') as f:
+                    json.dump(error_stats, f, indent=2)
+            except:
+                pass  # Ignore errors in error handling
+                
             raise PDFManipulatorError(f"Failed to process document: {e}")

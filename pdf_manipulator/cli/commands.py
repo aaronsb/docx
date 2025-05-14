@@ -224,10 +224,40 @@ def process(
         base_filename = pdf_path.stem
         doc_dir = output_dir / base_filename
         
-        click.echo(f"Document processed successfully!")
+        # Display success message and output locations
+        click.echo(f"\nDocument processed successfully!")
         click.echo(f"- Images: {doc_dir}/images/")
         click.echo(f"- Markdown: {doc_dir}/markdown/")
         click.echo(f"- TOC: {doc_dir}/{base_filename}_contents.json")
+        
+        # Display performance summary
+        if "performance" in toc and "stats" in toc:
+            perf = toc["performance"]
+            stats = toc["stats"]
+            
+            # Create a performance table
+            click.echo("\nPerformance Summary:")
+            click.echo("─" * 60)
+            click.echo(f"{"Document":20} : {pdf_path.name}")
+            click.echo(f"{"Pages Processed":20} : {stats.get('processed_pages', 0)} of {stats.get('total_pages', 0)}")
+            click.echo(f"{"Method":20} : {stats.get('transcription_method', 'unknown').upper()}")
+            click.echo(f"{"Total Time":20} : {perf.get('total_duration_formatted', 'N/A')}")
+            click.echo("─" * 60)
+            
+            # Display timing for each step
+            click.echo("Processing Steps:")
+            steps_formatted = perf.get("steps_formatted", {})
+            if steps_formatted:
+                for step, duration in steps_formatted.items():
+                    step_name = step.replace("_", " ").title()
+                    click.echo(f"  - {step_name:18} : {duration}")
+            
+            # Display per-page timing
+            click.echo("─" * 60)
+            if "avg_render_time_per_page_formatted" in perf and "avg_transcription_time_per_page_formatted" in perf:
+                click.echo(f"{"Avg. Render Time":20} : {perf['avg_render_time_per_page_formatted']} per page")
+                click.echo(f"{"Avg. Transcription":20} : {perf['avg_transcription_time_per_page_formatted']} per page")
+            click.echo("─" * 60)
     
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
