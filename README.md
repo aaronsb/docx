@@ -1,40 +1,75 @@
-# PDF Manipulator
+# Document AI Toolkit
 
-A modular Python toolkit for PDF manipulation with capabilities including:
+A modular Python toolkit for document processing and analysis with AI capabilities including:
 
 - Rendering PDF pages to PNG images
-- Extracting text and metadata
-- More features to be added...
+- OCR text extraction from document images
+- AI-powered document transcription using local models (Ollama, llama.cpp)
+- Table of contents generation with structured metadata
+- Markdown conversion for easy content reuse
 
 ## Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/pdf_manipulator.git
-cd pdf_manipulator
+git clone https://github.com/yourusername/doc_ai_toolkit.git
+cd doc_ai_toolkit
 
 # Install the package
 pip install -e .
 ```
 
+## Prerequisites
+
+- Python 3.8+
+- Tesseract OCR (optional but recommended for OCR capabilities)
+- Ollama with a multimodal model like llava (optional but recommended for AI transcription)
+
 ## Usage
 
 ### Command Line Interface
 
-Render PDF pages to PNG images:
+**Process a complete document:**
+
+```bash
+# Process a PDF with AI transcription (using Ollama)
+docaitool process document.pdf output_directory/ --model llava:latest
+
+# Process specific pages only
+docaitool process document.pdf output_directory/ --pages 0,1,2
+
+# Process with OCR only (no AI)
+docaitool process document.pdf output_directory/ --no-ai
+```
+
+**Render PDF pages to PNG images:**
 
 ```bash
 # Render all pages of a PDF
-pdf-manipulator render document.pdf output_directory/ --dpi 300
+docaitool render document.pdf output_directory/ --dpi 300
 
 # Render a specific page (0-based index)
-pdf-manipulator render document.pdf output_directory/ --page 0 --dpi 300
+docaitool render document.pdf output_directory/ --page 0 --dpi 300
 ```
 
-Display PDF information:
+**OCR an image:**
 
 ```bash
-pdf-manipulator info document.pdf
+# Extract text from an image using OCR
+docaitool ocr image.png --output text.txt
+```
+
+**Transcribe an image with AI:**
+
+```bash
+# Transcribe an image using Ollama
+docaitool transcribe image.png --model llava:latest --output transcription.md
+```
+
+**Display PDF information:**
+
+```bash
+docaitool info document.pdf
 ```
 
 ### Python API
@@ -42,50 +77,107 @@ pdf-manipulator info document.pdf
 ```python
 from pdf_manipulator.core.document import PDFDocument
 from pdf_manipulator.renderers.image_renderer import ImageRenderer
+from pdf_manipulator.extractors.ocr import OCRProcessor
+from pdf_manipulator.extractors.ai_transcription import OllamaTranscriber, DocumentTranscriber
+from pdf_manipulator.core.pipeline import DocumentProcessor
 
-# Open a PDF document
+# Basic PDF rendering
 with PDFDocument("document.pdf") as doc:
-    # Get document info
-    print(f"Pages: {doc.page_count}")
-    print(f"Metadata: {doc.metadata}")
-    
-    # Create a renderer
     renderer = ImageRenderer(doc)
-    
-    # Render a specific page to PNG
     renderer.render_page_to_png(
-        page_number=0,  # 0-based index
+        page_number=0,
         output_path="page0.png",
         dpi=300,
-        alpha=False,
     )
-    
-    # Render all pages
-    renderer.render_document_to_pngs(
-        output_dir="output_directory/",
-        file_prefix="page_",
-        dpi=300,
-    )
+
+# OCR processing
+ocr = OCRProcessor(language="eng")
+text = ocr.extract_text("page0.png")
+
+# AI transcription with Ollama
+transcriber = OllamaTranscriber(model_name="llava:latest")
+text = transcriber.transcribe_image(
+    "page0.png",
+    prompt="Transcribe this document page to markdown format."
+)
+
+# Complete document processing pipeline
+processor = DocumentProcessor(
+    output_dir="output/",
+    renderer_kwargs={"dpi": 300},
+    ocr_processor=ocr,
+    ai_transcriber=DocumentTranscriber(
+        transcriber=transcriber,
+        use_ocr_fallback=True,
+        ocr_fallback=ocr.extract_text,
+    ),
+)
+
+toc = processor.process_pdf("document.pdf", use_ai=True)
+```
+
+## Output Structure
+
+When processing a document, the toolkit creates the following structure:
+
+```
+output_directory/
+└── document_name/
+    ├── images/               # Rendered page images
+    │   ├── page_0000.png
+    │   ├── page_0001.png
+    │   └── ...
+    ├── markdown/             # Transcribed content
+    │   ├── page_0000.md
+    │   ├── page_0001.md
+    │   └── ...
+    └── document_name_contents.json  # Table of contents metadata
+```
+
+The contents.json file follows this structure:
+
+```json
+{
+  "document_name": "example",
+  "total_pages": 3,
+  "pages": [
+    {
+      "page_number": 1,
+      "image_file": "page_0000.png",
+      "markdown_file": "page_0000.md",
+      "first_line": "Chapter 1: Introduction",
+      "word_count": 245
+    },
+    ...
+  ]
+}
 ```
 
 ## Project Structure
 
 ```
-pdf_manipulator/
+doc_ai_toolkit/
 ├── core/               # Core document handling
+│   ├── document.py     # PDF document operations
+│   ├── exceptions.py   # Error handling
+│   └── pipeline.py     # Processing pipeline
 ├── renderers/          # PDF to image rendering
-├── extractors/         # Text/data extraction modules
+│   └── image_renderer.py
+├── extractors/         # Text extraction modules
+│   ├── ocr.py          # OCR functionality
+│   └── ai_transcription.py # AI-based transcription
 ├── utils/              # Utility functions
 └── cli/                # Command line interface
+    └── commands.py     # CLI commands
 ```
 
 ## Dependencies
 
 - PyMuPDF (fitz): Fast PDF rendering and manipulation
+- Tesseract (pytesseract): OCR capabilities
+- Ollama: Local AI model serving
 - Pillow: Image processing
-- PyPDF: Pure Python PDF toolkit
 - Click: Command line interface
-- Pandas: Data manipulation (for future features)
 
 ## License
 
