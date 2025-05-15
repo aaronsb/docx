@@ -57,6 +57,77 @@ For AI transcription, you can use one of the following backends:
 - Pull a multimodal model: `ollama pull llava:latest`
 - Server runs on http://localhost:11434 by default
 
+###### Docker Setup for Ollama
+
+For a containerized Ollama setup with GPU acceleration:
+
+1. Create a `docker-compose.yml` file:
+
+```yaml
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    environment:
+      - OLLAMA_ORIGINS=chrome-extension://*
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_KEEP_ALIVE=1h
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ollama_data:/root/.ollama
+      - /dev/shm:/dev/shm
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+```
+
+2. Start the Ollama container:
+
+```bash
+docker compose up -d
+```
+
+3. Pull and run models:
+
+```bash
+# Pull a multimodal model
+docker exec -it ollama ollama pull llava:latest
+
+# List available models
+docker exec -it ollama ollama list
+
+# Test a model
+docker exec -it ollama ollama run llava:latest
+```
+
+4. For Intel GPU acceleration, add the following to your `docker-compose.yml`:
+
+```yaml
+    environment:
+      # Add these lines for Intel GPU acceleration
+      - OLLAMA_USE_OPENVINO=1
+      - OLLAMA_CPU_THREADS=16  # Adjust based on your CPU cores
+    volumes:
+      # Add these lines for GPU access
+      - /dev/dri:/dev/dri
+    devices:
+      # Expose Intel GPU devices
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/dri/card0:/dev/dri/card0
+    group_add:
+      - video
+```
+
+You may need to install Intel drivers first:
+
+```bash
+sudo apt-get install -y intel-opencl-icd intel-level-zero-gpu level-zero intel-media-va-driver-non-free
+sudo usermod -a -G video $USER  # Log out and back in after this
+```
+
+For more details on the Docker setup for Ollama, see: [ollama-docker](https://github.com/aaronsb/ollama-docker)
+
 ##### llama.cpp Direct Integration
 
 - Requires the llama-cpp-python package: `pip install -e '.[llama]'`
