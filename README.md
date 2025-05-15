@@ -1,6 +1,6 @@
-# Document AI Toolkit
+# PDFX - PDF Extractor
 
-A modular Python toolkit for document processing and analysis with AI capabilities including:
+A modular Python toolkit for PDF document processing and analysis with AI capabilities including:
 
 - Rendering PDF pages to PNG images
 - OCR text extraction from document images
@@ -17,8 +17,8 @@ A modular Python toolkit for document processing and analysis with AI capabiliti
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/doc_ai_toolkit.git
-cd doc_ai_toolkit
+git clone https://github.com/aaronsb/docx.git
+cd docx
 
 # Standard installation
 pip install -e .
@@ -99,16 +99,16 @@ You can manage configuration files using:
 
 ```bash
 # List available configuration files
-docaitool config --list
+pdfx config --list
 
 # Create/update user configuration
-docaitool config --user
+pdfx config --user
 
 # Create/update project-specific configuration
-docaitool config --project
+pdfx config --project
 
 # Open configuration in default editor
-docaitool config --editor
+pdfx config --editor
 ```
 
 For detailed configuration documentation, see [Configuration Guide](docs/configuration.md).
@@ -138,78 +138,78 @@ pdfx info document.pdf                  # Show document information
 
 ```bash
 # Process a PDF with Ollama (default)
-docaitool process document.pdf output_directory/ --model llava:latest
+pdfx process document.pdf output_directory/ --model llava:latest
 
 # Process with llama.cpp HTTP server backend
-docaitool process document.pdf output_directory/ \
+pdfx process document.pdf output_directory/ \
   --backend llama_cpp_http \
   --model llava
 
 # Process with direct llama.cpp integration
-docaitool process document.pdf output_directory/ \
+pdfx process document.pdf output_directory/ \
   --backend llama_cpp \
   --model-path /path/to/model.gguf
 
 # Process specific pages only
-docaitool process document.pdf output_directory/ --pages 0,1,2
+pdfx process document.pdf output_directory/ --pages 0,1,2
 
 # Process with OCR only (no AI)
-docaitool process document.pdf output_directory/ --no-ai
+pdfx process document.pdf output_directory/ --no-ai
 
 # Specify Tesseract data directory if needed
-docaitool process document.pdf output_directory/ --tessdata-dir /usr/share/tessdata
+pdfx process document.pdf output_directory/ --tessdata-dir /usr/share/tessdata
 ```
 
 **Render PDF pages to PNG images:**
 
 ```bash
 # Render all pages of a PDF
-docaitool render document.pdf output_directory/ --dpi 300
+pdfx render document.pdf output_directory/ --dpi 300
 
 # Render a specific page (0-based index)
-docaitool render document.pdf output_directory/ --page 0 --dpi 300
+pdfx render document.pdf output_directory/ --page 0 --dpi 300
 ```
 
 **OCR an image:**
 
 ```bash
 # Extract text from an image using OCR
-docaitool ocr image.png --output text.txt
+pdfx ocr image.png --output text.txt
 
 # Specify Tesseract data directory if needed
-docaitool ocr image.png --tessdata-dir /usr/share/tessdata
+pdfx ocr image.png --tessdata-dir /usr/share/tessdata
 ```
 
 **Transcribe an image with AI:**
 
 ```bash
 # Transcribe an image using Ollama (default)
-docaitool transcribe image.png --model llava:latest --output transcription.md
+pdfx transcribe image.png --model llava:latest --output transcription.md
 
 # Transcribe using llama.cpp HTTP server
-docaitool transcribe image.png \
+pdfx transcribe image.png \
   --backend llama_cpp_http \
   --output transcription.md
 
 # Transcribe with custom prompt
-docaitool transcribe image.png --prompt "Extract tables from this image as markdown"
+pdfx transcribe image.png --prompt "Extract tables from this image as markdown"
 ```
 
 **Display PDF information:**
 
 ```bash
 # Show PDF info including the table of contents
-docaitool info document.pdf
+pdfx info document.pdf
 
 # Show PDF info but hide the table of contents
-docaitool info document.pdf --no-show-toc
+pdfx info document.pdf --no-show-toc
 ```
 
 **List AI intelligence backends:**
 
 ```bash
 # List available and configured intelligence backends
-docaitool intelligence --list
+pdfx intelligence --list
 ```
 
 ### Python API
@@ -350,7 +350,7 @@ The contents.json file follows this structure:
   ],
   "metadata": {
     "title": "Example Document",
-    "author": "Document AI Toolkit",
+    "author": "PDFX",
     "subject": "PDF Processing",
     "creator": "PyMuPDF"
   }
@@ -360,7 +360,7 @@ The contents.json file follows this structure:
 ## Project Structure
 
 ```
-doc_ai_toolkit/
+pdf_manipulator/
 ├── core/               # Core document handling
 │   ├── document.py     # PDF document operations
 │   ├── exceptions.py   # Error handling
@@ -370,6 +370,11 @@ doc_ai_toolkit/
 ├── extractors/         # Text extraction modules
 │   ├── ocr.py          # OCR functionality
 │   └── ai_transcription.py # AI-based transcription
+├── intelligence/       # AI backends
+│   ├── base.py         # Base class for backends
+│   ├── ollama.py       # Ollama API integration
+│   ├── llama_cpp.py    # Direct llama.cpp integration
+│   └── llama_cpp_http.py # HTTP client for llama.cpp
 ├── utils/              # Utility functions
 └── cli/                # Command line interface
     └── commands.py     # CLI commands
