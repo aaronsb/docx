@@ -9,6 +9,8 @@ from datetime import datetime
 from pdf_manipulator.core.document import PDFDocument
 from pdf_manipulator.renderers.image_renderer import ImageRenderer
 from pdf_manipulator.core.exceptions import PDFManipulatorError
+from pdf_manipulator.memory.memory_processor import MemoryProcessor
+from pdf_manipulator.memory.memory_adapter import MemoryConfig
 
 
 class PerformanceTimer:
@@ -156,6 +158,8 @@ class DocumentProcessor:
         renderer_kwargs: Optional[Dict[str, Any]] = None,
         ocr_processor=None,
         ai_transcriber=None,
+        memory_config: Optional[MemoryConfig] = None,
+        intelligence_processor=None,
     ):
         """Initialize the document processor.
         
@@ -164,11 +168,15 @@ class DocumentProcessor:
             renderer_kwargs: Keyword arguments for the image renderer
             ocr_processor: OCR processor instance
             ai_transcriber: AI transcriber instance
+            memory_config: Optional memory storage configuration
+            intelligence_processor: Optional intelligence processor for memory summaries
         """
         self.output_dir = Path(output_dir)
         self.renderer_kwargs = renderer_kwargs or {}
         self.ocr_processor = ocr_processor
         self.ai_transcriber = ai_transcriber
+        self.memory_config = memory_config
+        self.intelligence_processor = intelligence_processor
         
         # Create output directory
         os.makedirs(self.output_dir, exist_ok=True)
@@ -178,6 +186,7 @@ class DocumentProcessor:
         pdf_path: Union[str, Path],
         use_ai: bool = True,
         page_range: Optional[List[int]] = None,
+        store_in_memory: bool = False,
     ) -> Dict[str, Any]:
         """Process a PDF document through the complete pipeline.
         
@@ -185,6 +194,7 @@ class DocumentProcessor:
             pdf_path: Path to the PDF file
             use_ai: Whether to use AI transcription
             page_range: Optional list of page numbers to process (0-based)
+            store_in_memory: Whether to store results in memory graph database
             
         Returns:
             Dictionary with document structure
@@ -282,6 +292,56 @@ class DocumentProcessor:
                 else:
                     raise PDFManipulatorError("No OCR or AI processor available")
                 timer.end_step()
+                
+                # Store in memory graph if enabled
+                if store_in_memory and self.memory_config:
+                    timer.start_step("memory_storage")
+                    
+                    # Build page content dictionary from markdown files
+                    page_content = {}
+                    for i, page_num in enumerate(pages_to_process):
+                        md_file = markdown_dir / f"page_{i:04d}.md"
+                        if md_file.exists():
+                            with open(md_file, 'r', encoding='utf-8') as f:
+                                page_content[page_num] = f.read()
+                    
+                    # Create memory processor and store content
+                    memory_db_path = doc_dir / "memory_graph.db"
+                    memory_config = MemoryConfig(
+                        database_path=memory_db_path,
+                        domain_name=self.memory_config.domain_name,
+                        domain_description=self.memory_config.domain_description,
+                        enable_relationships=self.memory_config.enable_relationships,
+                        enable_summaries=self.memory_config.enable_summaries,
+                        tags_prefix=self.memory_config.tags_prefix,
+                        min_content_length=self.memory_config.min_content_length,
+                    )
+                    
+                    with MemoryProcessor(memory_config, self.intelligence_processor) as mem_processor:
+                        memory_results = mem_processor.process_document(
+                            pdf_document=doc,
+                            page_content=page_content,
+                            document_metadata={
+                                'filename': str(pdf_path),
+                                'base_filename': base_filename,
+                                'transcription_method': stats.get('transcription_method', 'unknown'),
+                            }
+                        )
+                        
+                        # Add memory results to TOC
+                        toc["memory_storage"] = {
+                            "enabled": True,
+                            "database_path": str(memory_db_path),
+                            "document_id": memory_results.get("document_id"),
+                            "page_memories": memory_results.get("page_memories", {}),
+                            "section_memories": memory_results.get("section_memories", {}),
+                        }
+                        stats["memory_storage"] = "completed"
+                    
+                    timer.end_step()
+                else:
+                    toc["memory_storage"] = {"enabled": False}
+                    stats["memory_storage"] = "disabled"
                 
                 # Add native document TOC to the output if available
                 timer.start_step("finalization")

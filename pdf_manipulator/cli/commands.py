@@ -18,6 +18,7 @@ from pdf_manipulator.utils.config import (
 )
 from pdf_manipulator.intelligence.processor import create_processor, DocumentProcessor
 from pdf_manipulator.intelligence.base import IntelligenceManager
+from pdf_manipulator.memory.memory_adapter import MemoryConfig
 
 
 @click.group()
@@ -275,6 +276,7 @@ def ocr(ctx, image_path: str, lang: Optional[str], tessdata_dir: Optional[str],
 @click.option('--tesseract-cmd', type=click.Path(), help='Path to tesseract executable')
 @click.option('--pages', help='Pages to process (comma-separated, 0-based)')
 @click.option('--prompt', help='Custom prompt for AI processing')
+@click.option('--memory/--no-memory', help='Store results in memory graph database')
 @click.pass_context
 def process(
     ctx,
@@ -289,6 +291,7 @@ def process(
     tesseract_cmd: Optional[str],
     pages: Optional[str],
     prompt: Optional[str],
+    memory: Optional[bool],
 ):
     """Process a PDF document through the complete pipeline."""
     config = ctx.obj['config']
@@ -318,6 +321,10 @@ def process(
     
     if prompt is None:
         prompt = config.get('processing', {}).get('default_prompt', None)
+    
+    # Process memory option
+    if memory is None:
+        memory = config.get('memory', {}).get('enabled', False)
     
     # If model is specified on the command line, update the config
     if model is not None:
@@ -352,6 +359,22 @@ def process(
         "zoom": config.get('rendering', {}).get('zoom', 1.0),
     }
     
+    # Set up memory configuration if enabled
+    memory_config = None
+    intelligence_proc = None
+    if memory:
+        memory_cfg = config.get('memory', {})
+        # Note: database_path will be updated in CoreDocumentProcessor with the actual output path
+        memory_config = MemoryConfig(
+            database_path=Path(output_dir) / memory_cfg.get('database_name', 'memory_graph.db'),
+            domain_name=memory_cfg.get('domain', {}).get('name', 'pdf_processing'),
+            domain_description=memory_cfg.get('domain', {}).get('description', 'Domain for PDF document processing'),
+            enable_relationships=memory_cfg.get('creation', {}).get('enable_relationships', True),
+            enable_summaries=memory_cfg.get('creation', {}).get('enable_summaries', True),
+            tags_prefix=memory_cfg.get('creation', {}).get('tags_prefix', 'pdf:'),
+            min_content_length=memory_cfg.get('creation', {}).get('min_content_length', 50),
+        )
+    
     try:
         # Initialize document processor
         if use_ai:
@@ -367,11 +390,14 @@ def process(
                     click.echo(f"Using AI backend: {backend}")
                 
                 # Create document processor from core
+                intelligence_proc = processor
                 document_processor = CoreDocumentProcessor(
                     output_dir=output_dir,
                     renderer_kwargs=renderer_kwargs,
                     ocr_processor=ocr_processor,
                     ai_transcriber=processor,
+                    memory_config=memory_config,
+                    intelligence_processor=processor if memory_config else None,
                 )
             
             except Exception as e:
@@ -382,6 +408,8 @@ def process(
                     output_dir=output_dir,
                     renderer_kwargs=renderer_kwargs,
                     ocr_processor=ocr_processor,
+                    memory_config=memory_config,
+                    intelligence_processor=intelligence_proc,
                 )
         else:
             # OCR only processor
@@ -389,14 +417,19 @@ def process(
                 output_dir=output_dir,
                 renderer_kwargs=renderer_kwargs,
                 ocr_processor=ocr_processor,
+                memory_config=memory_config,
+                intelligence_processor=intelligence_proc,
             )
         
         # Process the document
         click.echo(f"Processing document: {pdf_path}")
+        if memory:
+            click.echo("Memory storage enabled")
         toc = document_processor.process_pdf(
             pdf_path=pdf_path,
             use_ai=use_ai,
             page_range=page_range,
+            store_in_memory=memory,
         )
         
         # Display results
@@ -409,6 +442,14 @@ def process(
         click.echo(f"- Images: {doc_dir}/images/")
         click.echo(f"- Markdown: {doc_dir}/markdown/")
         click.echo(f"- TOC: {doc_dir}/{base_filename}_contents.json")
+        
+        # Display memory storage information if enabled
+        if memory and "memory_storage" in toc and toc["memory_storage"].get("enabled"):
+            memory_info = toc["memory_storage"]
+            click.echo(f"- Memory DB: {memory_info.get('database_path')}")
+            click.echo(f"  Document ID: {memory_info.get('document_id')}")
+            click.echo(f"  Pages stored: {len(memory_info.get('page_memories', {}))}")
+            click.echo(f"  Sections found: {len(memory_info.get('section_memories', {}))}")
         
         # Display performance summary
         if "performance" in toc and "stats" in toc:
@@ -574,6 +615,189 @@ def intelligence(ctx, list_backends):
         for backend in available:
             if backend not in [b['name'] for b in configured]:
                 click.echo(f"  {backend} (not configured)")
+
+
+@cli.command()
+@click.argument('subcommand', type=click.Choice(['create', 'query', 'export', 'info']))
+@click.argument('args', nargs=-1)
+@click.option('--database', '-d', type=click.Path(), help='Path to memory database')
+@click.option('--query', '-q', help='Search query for memory operations')
+@click.option('--limit', type=int, default=10, help='Limit results (default: 10)')
+@click.option('--output', '-o', type=click.Path(), help='Output file for export')
+@click.pass_context
+def memory(ctx, subcommand: str, args: tuple, database: Optional[str], query: Optional[str], limit: int, output: Optional[str]):
+    """Manage memory graph databases.
+    
+    Examples:
+        pdfx memory create output/memory_graph.db
+        pdfx memory query output/memory_graph.db --query "search term"
+        pdfx memory info output/memory_graph.db
+        pdfx memory export output/memory_graph.db --output export.json
+    """
+    from pdf_manipulator.memory.memory_adapter import MemoryAdapter, MemoryConfig
+    from pdf_manipulator.memory.memory_processor import MemoryProcessor
+    import json
+    from datetime import datetime
+    
+    config = ctx.obj['config']
+    
+    # Get database path
+    if not database and len(args) > 0:
+        database = args[0]
+    
+    if not database and subcommand != 'create':
+        click.echo("Error: Database path required", err=True)
+        return
+    
+    try:
+        if subcommand == 'create':
+            # Create a new memory database
+            db_path = database or (args[0] if args else 'memory_graph.db')
+            
+            memory_config = MemoryConfig(
+                database_path=Path(db_path),
+                domain_name=config.get('memory', {}).get('domain', {}).get('name', 'pdf_processing'),
+                domain_description=config.get('memory', {}).get('domain', {}).get('description', 'PDF document processing'),
+            )
+            
+            # Initialize database
+            adapter = MemoryAdapter(memory_config)
+            adapter.connect()
+            adapter.disconnect()
+            
+            click.echo(f"Created memory database: {db_path}")
+            
+        elif subcommand == 'query':
+            # Query memory database
+            if not query:
+                click.echo("Error: --query option required", err=True)
+                return
+            
+            memory_config = MemoryConfig(database_path=Path(database))
+            adapter = MemoryAdapter(memory_config)
+            adapter.connect()
+            
+            # Search memories
+            results = adapter.search_memories(query, limit=limit)
+            
+            click.echo(f"Found {len(results)} memories matching '{query}':")
+            for i, memory in enumerate(results):
+                click.echo(f"\n{i+1}. {memory['path']}")
+                click.echo(f"   ID: {memory['id'][:8]}...")
+                click.echo(f"   Tags: {', '.join(memory['tags'])}")
+                content_preview = memory['content'][:200] + "..." if len(memory['content']) > 200 else memory['content']
+                click.echo(f"   Content: {content_preview}")
+                if memory.get('content_summary'):
+                    click.echo(f"   Summary: {memory['content_summary']}")
+            
+            adapter.disconnect()
+            
+        elif subcommand == 'info':
+            # Show database information
+            memory_config = MemoryConfig(database_path=Path(database))
+            adapter = MemoryAdapter(memory_config)
+            adapter.connect()
+            
+            # Get database statistics
+            cursor = adapter.conn.execute("SELECT COUNT(*) FROM MEMORY_NODES")
+            node_count = cursor.fetchone()[0]
+            
+            cursor = adapter.conn.execute("SELECT COUNT(*) FROM MEMORY_EDGES")
+            edge_count = cursor.fetchone()[0]
+            
+            cursor = adapter.conn.execute("SELECT COUNT(DISTINCT domain) FROM MEMORY_NODES")
+            domain_count = cursor.fetchone()[0]
+            
+            cursor = adapter.conn.execute("SELECT id, name FROM DOMAINS")
+            domains = cursor.fetchall()
+            
+            click.echo(f"Memory database: {database}")
+            click.echo(f"Total memories: {node_count}")
+            click.echo(f"Total relationships: {edge_count}")
+            click.echo(f"Domains: {domain_count}")
+            
+            if domains:
+                click.echo("\nAvailable domains:")
+                for domain_id, domain_name in domains:
+                    cursor = adapter.conn.execute(
+                        "SELECT COUNT(*) FROM MEMORY_NODES WHERE domain = ?",
+                        (domain_id,)
+                    )
+                    count = cursor.fetchone()[0]
+                    click.echo(f"  - {domain_name}: {count} memories")
+            
+            # Recent memories
+            recent = adapter.get_recent_memories(limit=5)
+            if recent:
+                click.echo("\nRecent memories:")
+                for i, memory in enumerate(recent):
+                    click.echo(f"  {i+1}. {memory['path']} ({memory['timestamp']})")
+            
+            adapter.disconnect()
+            
+        elif subcommand == 'export':
+            # Export memory database
+            if not output:
+                output = database.replace('.db', '_export.json')
+            
+            memory_config = MemoryConfig(database_path=Path(database))
+            
+            with MemoryProcessor(memory_config) as processor:
+                # Get all memories
+                adapter = processor.adapter
+                cursor = adapter.conn.execute(
+                    """SELECT m.*, GROUP_CONCAT(mt.tag) as tags
+                       FROM MEMORY_NODES m
+                       LEFT JOIN MEMORY_TAGS mt ON m.id = mt.nodeId
+                       GROUP BY m.id"""
+                )
+                
+                memories = []
+                for row in cursor:
+                    memory = {
+                        'id': row[0],
+                        'domain': row[1],
+                        'content': row[2],
+                        'timestamp': row[3],
+                        'path': row[4],
+                        'content_summary': row[5],
+                        'tags': row[7].split(',') if row[7] else []
+                    }
+                    memories.append(memory)
+                
+                # Get relationships
+                cursor = adapter.conn.execute("SELECT * FROM MEMORY_EDGES")
+                edges = []
+                for row in cursor:
+                    edge = {
+                        'id': row[0],
+                        'source': row[1],
+                        'target': row[2],
+                        'type': row[3],
+                        'strength': row[4],
+                        'timestamp': row[5],
+                        'domain': row[6]
+                    }
+                    edges.append(edge)
+                
+                # Export data
+                export_data = {
+                    'memories': memories,
+                    'relationships': edges,
+                    'metadata': {
+                        'exported_at': datetime.now().isoformat(),
+                        'total_memories': len(memories),
+                        'total_relationships': len(edges)
+                    }
+                }
+                
+                with open(output, 'w', encoding='utf-8') as f:
+                    json.dump(export_data, f, indent=2)
+                
+                click.echo(f"Exported {len(memories)} memories to {output}")
+        
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
 
 
 if __name__ == '__main__':

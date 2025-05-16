@@ -9,6 +9,8 @@ A modular Python toolkit for PDF document processing and analysis with AI capabi
 - Markdown conversion for easy content reuse
 - Flexible configuration system with YAML format
 - Command-line interface with configuration management
+- **Memory graph storage**: Store extracted content in SQLite database following memory-graph schema
+- **Context-aware processing**: Use existing memories to enhance new document processing
 
 ## Architecture Overview
 
@@ -30,6 +32,16 @@ Multiple backend options provide flexibility:
 - **Ollama API** (easiest to use)
 - **llama.cpp** direct integration (via Python bindings)
 - **llama.cpp HTTP** server (for custom optimized builds)
+
+### Memory Graph Integration
+
+The toolkit supports storing extracted content in a memory-graph compatible SQLite database:
+
+- Store document pages, sections, and metadata as interconnected memory nodes
+- Create relationships between related content (pages, sections, documents)
+- Query previous memories to enhance future document processing
+- Generate AI summaries for better searchability
+- Compatible with memory-graph ecosystem for knowledge management
 
 ### Configuration System
 
@@ -76,6 +88,12 @@ pdfx process document.pdf output_directory/ --pages 0,1,2
 
 # Process with OCR only (no AI)
 pdfx process document.pdf output_directory/ --no-ai
+
+# Process with memory storage enabled
+pdfx process document.pdf output_directory/ --memory
+
+# Process with memory and specific AI backend
+pdfx process document.pdf output_directory/ --memory --backend ollama --model llava:latest
 ```
 
 **Render PDF pages to PNG images:**
@@ -170,10 +188,65 @@ output_directory/
     │   ├── page_0000.md
     │   ├── page_0001.md
     │   └── ...
+    ├── memory_graph.db       # Memory storage database (if enabled)
     └── document_name_contents.json  # Table of contents metadata
 ```
 
 The contents.json file includes document structure, TOC, and metadata.
+
+### Memory Graph Usage
+
+When memory storage is enabled (`--memory` flag or configured in settings), the toolkit creates a SQLite database following the memory-graph schema:
+
+```python
+# Using memory storage in Python
+from pdf_manipulator.memory.memory_adapter import MemoryConfig
+from pdf_manipulator.memory.memory_processor import MemoryProcessor
+
+# Configure memory storage
+memory_config = MemoryConfig(
+    database_path="output/memory_graph.db",
+    domain_name="pdf_documents",
+    enable_relationships=True,
+    enable_summaries=True,
+)
+
+# Process document with memory storage
+document_processor = DocumentProcessor(
+    output_dir="output/",
+    memory_config=memory_config,
+    # ... other options
+)
+
+result = document_processor.process_pdf(
+    "document.pdf",
+    store_in_memory=True,
+)
+
+# Query stored memories
+with MemoryProcessor(memory_config) as processor:
+    # Find related documents
+    similar_docs = processor.find_similar_documents("search query")
+    
+    # Get document knowledge graph
+    graph = processor.get_document_graph(document_id, max_depth=2)
+```
+
+Example memory configuration in config.yaml:
+
+```yaml
+memory:
+  enabled: true
+  database_name: "memory_graph.db"
+  domain:
+    name: "pdf_processing"
+    description: "PDF document knowledge base"
+  creation:
+    enable_relationships: true
+    enable_summaries: true
+    tags_prefix: "pdf:"
+    min_content_length: 50
+```
 
 ## Installation and Setup
 
@@ -358,10 +431,18 @@ pdf_manipulator/
 │   ├── base.py         # Base class for backends
 │   ├── ollama.py       # Ollama API integration
 │   ├── llama_cpp.py    # Direct llama.cpp integration
-│   └── llama_cpp_http.py # HTTP client for llama.cpp
+│   ├── llama_cpp_http.py # HTTP client for llama.cpp
+│   └── memory_enhanced.py # Memory-enhanced backend
+├── memory/             # Memory graph integration
+│   ├── memory_adapter.py  # SQLite database adapter
+│   └── memory_processor.py # Document memory processing
 ├── utils/              # Utility functions
-└── cli/                # Command line interface
-    └── commands.py     # CLI commands
+├── cli/                # Command line interface
+│   └── commands.py     # CLI commands
+└── examples/           # Example scripts
+    ├── memory_processing_example.py      # Basic memory storage example
+    ├── memory_enhanced_processing.py     # Advanced memory-enhanced processing
+    └── cli_memory_example.sh            # CLI usage examples
 ```
 
 ## License

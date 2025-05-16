@@ -21,6 +21,7 @@ class PDFDocument:
             DocumentError: If the file does not exist or is not a valid PDF
         """
         self.file_path = Path(file_path)
+        self.filename = str(self.file_path.name)
         
         if not self.file_path.exists():
             raise DocumentError(f"File not found: {self.file_path}")
@@ -28,6 +29,7 @@ class PDFDocument:
         try:
             self.doc = fitz.open(self.file_path)
             self.page_count = len(self.doc)
+            self.num_pages = self.page_count  # Alias for compatibility
             self.metadata = self.doc.metadata
         except Exception as e:
             raise DocumentError(f"Error opening PDF: {e}")
@@ -44,6 +46,14 @@ class PDFDocument:
         """Close the document and free resources."""
         if hasattr(self, 'doc') and self.doc:
             self.doc.close()
+    
+    def get_info(self) -> Dict[str, Any]:
+        """Get document metadata/info.
+        
+        Returns:
+            Dictionary with document metadata
+        """
+        return self.metadata
             
     def get_page(self, page_number: int):
         """Get a specific page from the document.

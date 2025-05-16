@@ -124,3 +124,41 @@ processing:
   
   # Whether to use OCR as fallback when AI transcription fails
   use_ocr_fallback: true
+
+# Memory graph storage settings
+memory:
+  # Enable memory graph storage during processing
+  enabled: false
+  
+  # Database file name (created in output directory)
+  database_name: "memory_graph.db"
+  
+  # Domain configuration
+  domain:
+    # Name of the memory domain for PDF processing
+    name: "pdf_processing"
+    
+    # Description of the domain
+    description: "Domain for PDF document processing and extraction"
+  
+  # Memory creation settings
+  creation:
+    # Enable relationship creation between pages/sections
+    enable_relationships: true
+    
+    # Enable AI-generated summaries for memories
+    enable_summaries: true
+    
+    # Prefix for memory tags (e.g., "pdf:page")
+    tags_prefix: "pdf:"
+    
+    # Minimum content length to create a memory (in characters)
+    min_content_length: 50
+  
+  # Memory enhancement settings
+  enhancement:
+    # Enable memory context queries during AI processing
+    enable_queries: true
+    
+    # Maximum memories to include in context
+    max_context_memories: 5
