@@ -13,7 +13,7 @@ PDFX transforms PDF documents into structured, searchable content using a combin
 - Markdown conversion for easy content reuse
 - Flexible configuration system with YAML format
 - Command-line interface with configuration management
-- **Memory graph storage**: Store extracted content in SQLite database following memory-graph schema
+- **Memory graph storage**: Store extracted content in SQLite database directly compatible with [memory-graph-mcp](https://github.com/aaronsb/memory-graph)
 - **Context-aware processing**: Use existing memories to enhance new document processing
 
 ## Use Cases
@@ -25,6 +25,7 @@ PDFX transforms PDF documents into structured, searchable content using a combin
 
 ### Knowledge Management
 - **Document memory storage**: Build a searchable knowledge base from processed documents
+- **MCP-compatible memory graph**: Generated databases work directly with [memory-graph-mcp](https://github.com/aaronsb/memory-graph) for Claude Desktop
 - **Cross-document relationships**: Create connections between related content across multiple PDFs
 - **Context-aware processing**: Use previously extracted knowledge to improve future processing
 
@@ -188,7 +189,7 @@ The contents.json file includes document structure, TOC, and metadata.
 
 ### Memory Graph Usage
 
-When memory storage is enabled (`--memory` flag or configured in settings), the toolkit creates a SQLite database following the memory-graph schema:
+When memory storage is enabled (`--memory` flag or configured in settings), the toolkit creates a SQLite database that is directly compatible with the [memory-graph-mcp server](https://github.com/aaronsb/memory-graph). These database files can be used with Claude Desktop and other AI tools:
 
 ```python
 # Using memory storage in Python
@@ -263,13 +264,14 @@ Multiple backend options provide flexibility:
 
 ### Memory Graph Integration
 
-The toolkit supports storing extracted content in a memory-graph compatible SQLite database:
+The toolkit generates SQLite databases that are directly compatible with the [memory-graph-mcp server](https://github.com/aaronsb/memory-graph), enabling seamless integration with other AI tools and Claude Desktop:
 
 - Store document pages, sections, and metadata as interconnected memory nodes
 - Create relationships between related content (pages, sections, documents)
 - Query previous memories to enhance future document processing
 - Generate AI summaries for better searchability
-- Compatible with memory-graph ecosystem for knowledge management
+- Database files can be opened directly by memory-graph-mcp for use with Claude Desktop and other AI applications
+- Compatible with the entire memory-graph ecosystem for knowledge management
 
 ### Configuration System
 
