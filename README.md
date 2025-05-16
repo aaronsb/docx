@@ -1,6 +1,10 @@
 # PDFX - PDF Extractor
 
-A modular Python toolkit for PDF document processing and analysis with AI capabilities including:
+A modular Python toolkit for PDF document processing and analysis with AI capabilities.
+
+## Summary
+
+PDFX transforms PDF documents into structured, searchable content using a combination of rendering, OCR, and AI-powered transcription. Key features include:
 
 - Rendering PDF pages to PNG images
 - OCR text extraction from document images
@@ -12,45 +16,33 @@ A modular Python toolkit for PDF document processing and analysis with AI capabi
 - **Memory graph storage**: Store extracted content in SQLite database following memory-graph schema
 - **Context-aware processing**: Use existing memories to enhance new document processing
 
-## Architecture Overview
+## Use Cases
 
-PDFX follows a layered architecture with modular components:
+### Document Processing
+- **Batch PDF to Markdown conversion**: Convert entire PDF documents or directories into markdown files
+- **Intelligent content extraction**: Use AI to understand complex layouts, tables, and figures
+- **OCR fallback**: Automatically fall back to OCR when AI transcription fails
 
-### Processing Pipeline
+### Knowledge Management
+- **Document memory storage**: Build a searchable knowledge base from processed documents
+- **Cross-document relationships**: Create connections between related content across multiple PDFs
+- **Context-aware processing**: Use previously extracted knowledge to improve future processing
 
-The document processing pipeline follows this sequence:
+### Examples
 
-1. PDF document → rendering → PNG images
-2. Images → OCR/AI transcription → text 
-3. Text → structure extraction → structured content
-4. (Optional) Advanced processing → semantic understanding
+```bash
+# Convert a PDF to searchable markdown with AI
+pdfx process document.pdf output/ --model llava:latest
 
-### AI Intelligence Backends
+# Process with memory storage to build knowledge base
+pdfx process document.pdf output/ --memory
 
-Multiple backend options provide flexibility:
+# Render specific pages as images
+pdfx render document.pdf images/ --pages 0,1,2 --dpi 300
 
-- **Ollama API** (easiest to use)
-- **llama.cpp** direct integration (via Python bindings)
-- **llama.cpp HTTP** server (for custom optimized builds)
-
-### Memory Graph Integration
-
-The toolkit supports storing extracted content in a memory-graph compatible SQLite database:
-
-- Store document pages, sections, and metadata as interconnected memory nodes
-- Create relationships between related content (pages, sections, documents)
-- Query previous memories to enhance future document processing
-- Generate AI summaries for better searchability
-- Compatible with memory-graph ecosystem for knowledge management
-
-### Configuration System
-
-The toolkit uses a hierarchical YAML-based configuration:
-
-1. Default built-in configuration
-2. User configuration (~/.config/pdf_manipulator/config.yaml)
-3. Project configuration (./.pdf_manipulator/config.yaml) 
-4. Command-line options (override all others)
+# Extract text from scanned images
+pdfx ocr scan.png --output text.txt
+```
 
 ## Usage
 
@@ -247,6 +239,46 @@ memory:
     tags_prefix: "pdf:"
     min_content_length: 50
 ```
+
+## Architecture Overview
+
+PDFX follows a layered architecture with modular components:
+
+### Processing Pipeline
+
+The document processing pipeline follows this sequence:
+
+1. PDF document → rendering → PNG images
+2. Images → OCR/AI transcription → text 
+3. Text → structure extraction → structured content
+4. (Optional) Advanced processing → semantic understanding
+
+### AI Intelligence Backends
+
+Multiple backend options provide flexibility:
+
+- **Ollama API** (easiest to use)
+- **llama.cpp** direct integration (via Python bindings)
+- **llama.cpp HTTP** server (for custom optimized builds)
+
+### Memory Graph Integration
+
+The toolkit supports storing extracted content in a memory-graph compatible SQLite database:
+
+- Store document pages, sections, and metadata as interconnected memory nodes
+- Create relationships between related content (pages, sections, documents)
+- Query previous memories to enhance future document processing
+- Generate AI summaries for better searchability
+- Compatible with memory-graph ecosystem for knowledge management
+
+### Configuration System
+
+The toolkit uses a hierarchical YAML-based configuration:
+
+1. Default built-in configuration
+2. User configuration (~/.config/pdf_manipulator/config.yaml)
+3. Project configuration (./.pdf_manipulator/config.yaml) 
+4. Command-line options (override all others)
 
 ## Installation and Setup
 
