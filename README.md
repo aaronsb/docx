@@ -21,7 +21,7 @@ The basic idea is simple:
 
 1. **Extract text from PDF** (using different techniques)
 2. **Analyze the content** to find structure, topics and connections
-3. **Build a semantic graph** with nodes (ideas, sections) and edges (relationships)
+3. **Build a semantic graph** with nodes (ideas, sections) and edges (relationships) - like connecting dots with lines ([graph theory](https://en.wikipedia.org/wiki/Graph_theory) for beginners)
 4. **Store everything** in a format language models can use
 
 What makes this different from typical document indexing:
@@ -230,7 +230,7 @@ document_graph = processor.get_document_graph(results['document_id'])
 
 ## How It's Built
 
-I've tried to design this system to be understandable even if you're not an expert in knowledge graphs. Here's a simplified view:
+I've tried to design this system to be understandable even if you're not an expert in [knowledge graphs](https://en.wikipedia.org/wiki/Graph_theory). Here's a simplified view:
 
 ```mermaid
 graph TD
