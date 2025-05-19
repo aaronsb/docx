@@ -220,8 +220,16 @@ class MarkitdownBackend(IntelligenceBackend):
             status = progress.show_conversion_start()
         
         try:
+            # Update status to show conversion is happening
+            if show_progress:
+                progress.update_status("Converting document to markdown...")
+            
             # Convert the entire document at once
             markdown_content = self.convert_document(document_path)
+            
+            # Update status to show saving
+            if show_progress:
+                progress.update_status("Saving markdown output...")
             
             # Save to a single markdown file
             md_path = output_dir / f"{base_filename}.md"

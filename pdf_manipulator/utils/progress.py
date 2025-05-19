@@ -196,6 +196,7 @@ class DirectConversionProgress:
         """
         self.document_path = document_path
         self.start_time = time.time()
+        self.status_display = None
         
     def show_conversion_start(self):
         """Show conversion start message."""
@@ -205,8 +206,18 @@ class DirectConversionProgress:
         console.print()
         
         # Show spinner while converting
-        with console.status("[cyan]Converting document with markitdown...[/cyan]") as status:
-            return status
+        self.status_display = console.status("[cyan]Initializing markitdown...[/cyan]")
+        self.status_display.start()
+        return self.status_display
+        
+    def update_status(self, message: str):
+        """Update the status message.
+        
+        Args:
+            message: New status message
+        """
+        if self.status_display:
+            self.status_display.update(f"[cyan]{message}[/cyan]")
             
     def show_conversion_complete(self, stats: Dict[str, Any]):
         """Show conversion completion with statistics.
@@ -214,6 +225,11 @@ class DirectConversionProgress:
         Args:
             stats: Content statistics
         """
+        # Stop the status display
+        if self.status_display:
+            self.status_display.stop()
+            self.status_display = None
+            
         elapsed = time.time() - self.start_time
         
         # Create results table
