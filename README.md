@@ -232,15 +232,20 @@ document_graph = processor.get_document_graph(results['document_id'])
 
 I've tried to design this system to be understandable even if you're not an expert in knowledge graphs. Here's a simplified view:
 
-```
-PDF Document → Text Extraction → Semantic Understanding → Knowledge Graph
-                                        ↓
-                               [SQLite Database]
-                                        ↓  
-                    ┌─────────────────┴───────────────┐
-                    │                                 │
-              AI Assistant             Web Interface for Humans
-         (via memory-graph MCP)      (memory-graph-interface)
+```mermaid
+graph TD
+    A[PDF Document] --> B[Text Extraction]
+    B --> C[Semantic Understanding]
+    C --> D[Knowledge Graph]
+    D --> E[(SQLite Database)]
+    E --> F{Access Methods}
+    F --> G[AI Assistant<br/>via memory-graph MCP]
+    F --> H[Web Interface<br/>for Humans<br/>memory-graph-interface]
+    
+    style A fill:#f9d5e5,stroke:#333,stroke-width:1px
+    style E fill:#d0e6fa,stroke:#333,stroke-width:1px
+    style G fill:#d3f8e2,stroke:#333,stroke-width:1px
+    style H fill:#e3c9c9,stroke:#333,stroke-width:1px
 ```
 
 ### Main Components
@@ -252,6 +257,16 @@ PDF Document → Text Extraction → Semantic Understanding → Knowledge Graph
 5. **Memory Adapter**: Saves everything in a format that's useful for language models
 
 The real magic happens in the combination of classical NLP techniques (like TextRank for summarization) and multimodal language models that can "see" and understand the document content. This hybrid approach helps overcome the limitations of either method alone.
+
+### Detailed Pipeline Diagrams
+
+For a deeper understanding of how the system works, check out these technical diagrams:
+
+- [Semantic Pipeline Diagram](docs/semantic_pipeline_diagram.md) - Detailed flow of the entire process
+- [Semantic Pipeline Model](docs/semantic_pipeline_model.md) - Core data models and transformations
+- [Architecture Overview](docs/architecture.md) - Component interactions and design philosophy
+
+These diagrams provide a more technical view of the system for developers who want to understand or extend the functionality.
 
 ## Output Structure
 
