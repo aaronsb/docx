@@ -39,6 +39,9 @@ class SemanticPipelineConfig:
     # Semantic enhancement
     max_context_tokens: int = 4096
     context_summaries: int = 3
+    summarization_ratio: float = 0.2
+    max_summary_tokens: int = 75
+    force_summarization: bool = True
     
     # Graph construction
     edge_decay_rate: float = 0.1
@@ -92,6 +95,12 @@ class SemanticPipelineConfig:
         semantic = config_dict.get("semantic_enhancement", {})
         config.max_context_tokens = semantic.get("max_context_tokens", 4096)
         config.context_summaries = semantic.get("context_summaries", 3)
+        
+        # Text summarization settings
+        summarization = semantic.get("summarization", {})
+        config.summarization_ratio = summarization.get("ratio", 0.2)
+        config.max_summary_tokens = summarization.get("max_tokens", 75)
+        config.force_summarization = summarization.get("force", True)
         
         # Graph construction
         graph = config_dict.get("graph_construction", {})
@@ -317,6 +326,13 @@ class SemanticConfigManager:
         
         if "no_llm" in cli_args and cli_args["no_llm"]:
             merged_config.setdefault("pipeline", {})["enable_llm"] = False
+            
+        # Handle summarization settings
+        if "summarization_ratio" in cli_args:
+            merged_config.setdefault("semantic_enhancement", {}).setdefault("summarization", {})["ratio"] = cli_args["summarization_ratio"]
+            
+        if "max_tokens" in cli_args:
+            merged_config.setdefault("semantic_enhancement", {}).setdefault("summarization", {})["max_tokens"] = cli_args["max_tokens"]
         
         # Update config object
         self.config = SemanticPipelineConfig.from_dict(merged_config)

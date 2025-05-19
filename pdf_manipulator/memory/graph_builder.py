@@ -353,6 +353,18 @@ class GraphBuilder:
         edge_list = list(self.edges.values())
         self.edge_scorer.decay_old_edges(edge_list)
         
+        # Calculate traversal statistics
+        page_traversal_stats = self._calculate_traversal_stats(NodeType.PAGE)
+        markdown_traversal_stats = self._calculate_traversal_stats(NodeType.DOCUMENT, filter_key="is_raw_markdown")
+        summary_traversal_stats = self._calculate_traversal_stats(NodeType.SUMMARY, filter_key="is_semantic_summary")
+        
+        # Count nodes with semantic summaries
+        semantic_pages = sum(1 for node in self.nodes.values() 
+                           if node.type == NodeType.PAGE and "semantic_summary" in node.content)
+        
+        # Total pages
+        total_pages = sum(1 for node in self.nodes.values() if node.type == NodeType.PAGE)
+        
         return {
             "nodes": {node_id: node.to_dict() for node_id, node in self.nodes.items()},
             "edges": {edge_id: edge.to_dict() for edge_id, edge in self.edges.items()},
@@ -362,7 +374,15 @@ class GraphBuilder:
                 "total_edges": len(self.edges),
                 "node_types": self._get_node_type_stats(),
                 "edge_types": self._get_edge_type_stats(),
-                "ontology_coverage": self._calculate_ontology_coverage()
+                "ontology_coverage": self._calculate_ontology_coverage(),
+                "semantic_coverage": semantic_pages / total_pages if total_pages > 0 else 0,
+                "traversal": {
+                    "page_traversal": page_traversal_stats,
+                    "markdown_traversal": markdown_traversal_stats,
+                    "summary_traversal": summary_traversal_stats
+                },
+                "semantic_summary_count": semantic_pages,
+                "total_pages": total_pages
             }
         }
     
@@ -419,3 +439,79 @@ class GraphBuilder:
             return 0.0
         
         return tagged_nodes / total_nodes
+        
+    def _calculate_traversal_stats(self, 
+                                  node_type: NodeType, 
+                                  filter_key: Optional[str] = None) -> Dict[str, Any]:
+        """Calculate statistics about node traversal chains.
+        
+        Args:
+            node_type: Type of node to analyze
+            filter_key: Optional key in content to filter nodes (must be True)
+            
+        Returns:
+            Dictionary with traversal statistics
+        """
+        # Find all nodes of the specified type
+        target_nodes = []
+        for node in self.nodes.values():
+            if node.type == node_type:
+                if filter_key is None or node.content.get(filter_key, False):
+                    target_nodes.append(node)
+                    
+        # No nodes found
+        if not target_nodes:
+            return {
+                "count": 0,
+                "traversable_count": 0,
+                "traversal_percentage": 0,
+                "longest_chain": 0,
+                "chains": []
+            }
+        
+        # Find traversal chains
+        traversal_edges = {}
+        for edge_id, edge in self.edges.items():
+            if edge.type == EdgeType.PRECEDES:
+                source_node = self.nodes.get(edge.source_id)
+                target_node = self.nodes.get(edge.target_id)
+                
+                if source_node and target_node:
+                    if (source_node.type == node_type and target_node.type == node_type):
+                        if filter_key is None or (
+                            source_node.content.get(filter_key, False) and 
+                            target_node.content.get(filter_key, False)
+                        ):
+                            # Add to traversal mapping
+                            traversal_edges[edge.source_id] = edge.target_id
+        
+        # Identify start nodes (those that don't appear as targets)
+        start_nodes = []
+        for node in target_nodes:
+            if node.id not in traversal_edges.values():
+                start_nodes.append(node)
+        
+        # Build chains
+        chains = []
+        for start_node in start_nodes:
+            chain = [start_node.id]
+            current_id = start_node.id
+            
+            while current_id in traversal_edges:
+                next_id = traversal_edges[current_id]
+                chain.append(next_id)
+                current_id = next_id
+            
+            chains.append(chain)
+        
+        # Calculate statistics
+        has_traversal = sum(1 for node in target_nodes if node.id in traversal_edges)
+        longest_chain = max(len(chain) for chain in chains) if chains else 0
+        
+        return {
+            "count": len(target_nodes),
+            "traversable_count": has_traversal,
+            "traversal_percentage": has_traversal / len(target_nodes) if target_nodes else 0,
+            "longest_chain": longest_chain,
+            "chains": chains
+        }

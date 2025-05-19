@@ -8,7 +8,7 @@ import fitz  # PyMuPDF
 from pdf_manipulator.core.exceptions import DocumentError
 
 
-class PDFDocument:
+class Document:
     """Core PDF document class for manipulation operations."""
 
     def __init__(self, file_path: Union[str, Path]):
@@ -146,3 +146,7 @@ class PDFDocument:
             True if the document has a TOC, False otherwise
         """
         return len(self.get_toc()) > 0
+
+
+# Keep PDFDocument as an alias for backward compatibility
+PDFDocument = Document

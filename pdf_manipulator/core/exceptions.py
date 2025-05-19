@@ -11,6 +11,11 @@ class DocumentError(PDFManipulatorError):
     pass
 
 
+class DocumentProcessingError(PDFManipulatorError):
+    """Exception raised for errors in document processing operations."""
+    pass
+
+
 class RenderError(PDFManipulatorError):
     """Exception raised for errors in rendering operations."""
     pass
@@ -18,4 +23,14 @@ class RenderError(PDFManipulatorError):
 
 class ExtractorError(PDFManipulatorError):
     """Exception raised for errors in extraction operations."""
+    pass
+
+
+class ProcessingError(PDFManipulatorError):
+    """Exception raised for general processing errors."""
+    pass
+
+
+class IntelligenceError(PDFManipulatorError):
+    """Exception raised for intelligence backend errors."""
     pass

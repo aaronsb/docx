@@ -14,7 +14,7 @@ from ..memory.graph_builder import GraphBuilder, NodeType, EdgeType
 from ..intelligence.base import IntelligenceBackend
 from ..core.document import Document
 from ..core.exceptions import ProcessingError
-from ..utils.progress import ProgressReporter
+from ..utils.progress import ProcessingProgress
 
 
 @dataclass
@@ -71,7 +71,7 @@ class SemanticOrchestrator:
             )
         
         # Progress tracking
-        self.progress_reporter = ProgressReporter()
+        self.progress_reporter = ProcessingProgress()
         
     def process_document(self, 
                         document_path: Union[str, Path],
@@ -95,6 +95,14 @@ class SemanticOrchestrator:
             
             # Phase 1: Structure Discovery
             self.progress_reporter.update("Analyzing document structure...")
+            
+            # Debug the backend
+            if self.backend:
+                self.logger.info(f"Using intelligence backend: {self.backend.__class__.__name__}")
+                self.logger.info(f"Backend info: {self.backend.get_model_info()}")
+            else:
+                self.logger.warning("No intelligence backend configured!")
+                
             toc = self.structure_analyzer.extract_or_construct_toc(str(document_path))
             
             # Phase 2: Extract pages
@@ -107,8 +115,14 @@ class SemanticOrchestrator:
             
             # Phase 4: Semantic Enhancement (if enabled)
             if self.config.enable_llm and self.semantic_enhancer:
+                self.logger.info("Starting semantic enhancement with LLM...")
                 self.progress_reporter.update("Enhancing with semantic understanding...")
                 self._perform_semantic_enhancement(pages, toc)
+            else:
+                if not self.config.enable_llm:
+                    self.logger.warning("Semantic enhancement skipped - LLM processing is disabled")
+                elif not self.semantic_enhancer:
+                    self.logger.warning("Semantic enhancement skipped - No semantic enhancer available")
             
             # Phase 5: Generate output
             self.progress_reporter.update("Generating final output...")
@@ -149,7 +163,12 @@ class SemanticOrchestrator:
                 # Render page image if needed for LLM
                 image_path = None
                 if self.config.enable_llm and self.semantic_enhancer:
+                    self.logger.info(f"Rendering page {i+1} image for LLM processing")
                     image_path = self._render_page_image(doc, i)
+                    if image_path:
+                        self.logger.debug(f"Page {i+1} image rendered to: {image_path}")
+                    else:
+                        self.logger.error(f"Failed to render page {i+1} image!")
                 
                 pages.append(PageData(
                     number=i,
@@ -196,16 +215,75 @@ class SemanticOrchestrator:
     
     def _create_initial_nodes(self, page: PageData, analysis: Dict[str, Any]):
         """Create initial graph nodes from analysis."""
+        # Create page node with semantic summary if available
+        page_content = {
+            "text": page.text,
+            "page_number": page.number,
+            "key_terms": [t.text for t in analysis.get("key_terms", [])]
+        }
+        
         # Create page node
         page_node = self.graph_builder.create_node(
-            content={
-                "text": page.text,
-                "page_number": page.number,
-                "key_terms": [t.text for t in analysis.get("key_terms", [])]
-            },
+            content=page_content,
             node_type=NodeType.PAGE,
             confidence=0.8  # Initial confidence
         )
+        
+        # Create a separate node for the raw markdown text linked to the page
+        markdown_node = self.graph_builder.create_node(
+            content={
+                "text": page.text,
+                "page_number": page.number,
+                "is_raw_markdown": True
+            },
+            node_type=NodeType.DOCUMENT,  # Using DOCUMENT type for raw content
+            confidence=1.0  # Raw content has perfect confidence
+        )
+        
+        # Link markdown node to page node
+        self.graph_builder.create_edge(
+            source=page_node,
+            target=markdown_node,
+            edge_type=EdgeType.DERIVED_FROM,
+            confidence=1.0,
+            evidence=["Markdown content directly extracted from document"]
+        )
+        
+        # Check for previous page and create traversal relationship
+        previous_page_node = None
+        for node in self.graph_builder.nodes.values():
+            if (node.type == NodeType.PAGE and 
+                node.content.get("page_number") == page.number - 1):
+                previous_page_node = node
+                break
+                
+        if previous_page_node:
+            # Create page sequence relationship
+            self.graph_builder.create_edge(
+                source=previous_page_node,
+                target=page_node,
+                edge_type=EdgeType.PRECEDES,
+                confidence=1.0,
+                evidence=["Sequential page order in document"]
+            )
+            
+            # Also connect the raw markdown nodes to preserve traversal at raw level
+            previous_markdown_node = None
+            for node in self.graph_builder.nodes.values():
+                if (node.type == NodeType.DOCUMENT and 
+                    node.content.get("page_number") == page.number - 1 and
+                    node.content.get("is_raw_markdown", False)):
+                    previous_markdown_node = node
+                    break
+                    
+            if previous_markdown_node:
+                self.graph_builder.create_edge(
+                    source=previous_markdown_node,
+                    target=markdown_node,
+                    edge_type=EdgeType.PRECEDES,
+                    confidence=1.0,
+                    evidence=["Sequential page order in document"]
+                )
         
         # Create nodes for key concepts
         for term in analysis.get("key_terms", []):
@@ -246,14 +324,26 @@ class SemanticOrchestrator:
         # Process pages in batches for efficiency
         batch_size = self.config.parallel_pages
         
+        self.logger.info(f"Starting semantic enhancement for {len(pages)} pages in batches of {batch_size}")
+        
+        # Verify semantic enhancer is available
+        if not self.semantic_enhancer:
+            self.logger.error("Semantic enhancer not available!")
+            return
+            
+        self.logger.info(f"Using semantic enhancer: {self.semantic_enhancer.__class__.__name__}")
+        
         with concurrent.futures.ThreadPoolExecutor(max_workers=batch_size) as executor:
             futures = []
             
             for i in range(0, len(pages), batch_size):
                 batch = pages[i:i + batch_size]
                 
+                self.logger.info(f"Processing batch {i//batch_size + 1} with {len(batch)} pages")
+                
                 # Submit batch for processing
                 for page in batch:
+                    self.logger.info(f"Submitting page {page.number + 1} for enhancement")
                     future = executor.submit(
                         self._enhance_single_page,
                         page, toc, i
@@ -264,17 +354,35 @@ class SemanticOrchestrator:
                 for future in concurrent.futures.as_completed(futures):
                     try:
                         result = future.result()
-                        self.logger.debug(f"Enhanced page {result['page_number']}")
+                        self.logger.info(f"Enhanced page {result['page_number'] + 1} successfully")
                     except Exception as e:
                         self.logger.error(f"Enhancement failed: {e}")
+                        import traceback
+                        self.logger.error(f"Traceback: {traceback.format_exc()}")
     
     def _enhance_single_page(self, page: PageData, toc: TOCStructure, 
                            context_index: int) -> Dict[str, Any]:
         """Enhance a single page with semantic understanding."""
+        self.logger.info(f"Starting enhancement for page {page.number + 1}")
+        
+        # Check if image path exists
+        if not page.image_path:
+            self.logger.error(f"No image path for page {page.number + 1} - cannot process with vision model")
+            return {
+                "page_number": page.number,
+                "error": "No image path available"
+            }
+        
+        # Check if text exists
+        if not page.text:
+            self.logger.warning(f"No text found for page {page.number + 1} - proceeding with empty text")
+            
         # Get context from nearby pages
         previous_summaries = self._get_previous_summaries(context_index)
+        self.logger.debug(f"Found {len(previous_summaries)} previous summaries for context")
         
         # Prepare context
+        self.logger.debug(f"Preparing context for page {page.number + 1}")
         context = self.semantic_enhancer.prepare_context(
             toc=toc,
             page_content=page.text,
@@ -285,7 +393,15 @@ class SemanticOrchestrator:
         )
         
         # Generate semantic summary
-        summary = self.semantic_enhancer.enhance_with_llm(context)
+        self.logger.info(f"Calling LLM to enhance page {page.number + 1}")
+        try:
+            summary = self.semantic_enhancer.enhance_with_llm(context)
+            self.logger.info(f"Received LLM summary for page {page.number + 1} - Confidence: {summary.confidence}")
+        except Exception as e:
+            self.logger.error(f"Failed to enhance page {page.number + 1} with LLM: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+            raise
         
         # Find page node
         page_node = None
@@ -297,12 +413,67 @@ class SemanticOrchestrator:
         
         if page_node:
             # Update graph with semantic understanding
+            self.logger.debug(f"Updating graph with semantic understanding for page {page.number + 1}")
+            
+            # Store the semantic summary in the page node content
+            page_node.content["semantic_summary"] = summary.summary
+            page_node.content["semantic_confidence"] = summary.confidence
+            page_node.content["semantic_key_concepts"] = summary.key_concepts
+            page_node.content["semantic_relationships"] = [
+                {"source": rel[0], "type": rel[1], "target": rel[2]} 
+                for rel in summary.relationships
+            ]
+            page_node.updated_at = datetime.now()
+            
+            # Also create a summary node linked to the page
+            summary_node = self.graph_builder.create_node(
+                content={
+                    "text": summary.summary,
+                    "page_number": page.number,
+                    "key_concepts": summary.key_concepts,
+                    "confidence": summary.confidence,
+                    "is_semantic_summary": True
+                },
+                node_type=NodeType.SUMMARY,
+                confidence=summary.confidence
+            )
+            
+            # Link summary to page
+            self.graph_builder.create_edge(
+                source=summary_node,
+                target=page_node,
+                edge_type=EdgeType.SUMMARIZES,
+                confidence=summary.confidence,
+                evidence=["Generated by LLM-based semantic analysis"]
+            )
+            
+            # Connect to previous summaries for traversal
+            previous_summary_node = None
+            for node in self.graph_builder.nodes.values():
+                if (node.type == NodeType.SUMMARY and 
+                    node.content.get("page_number") == page.number - 1 and
+                    node.content.get("is_semantic_summary", False)):
+                    previous_summary_node = node
+                    break
+                    
+            if previous_summary_node:
+                self.graph_builder.create_edge(
+                    source=previous_summary_node,
+                    target=summary_node,
+                    edge_type=EdgeType.PRECEDES,
+                    confidence=1.0,
+                    evidence=["Sequential page order in document"]
+                )
+            
+            # Now update graph with remaining semantic relationships
             self.semantic_enhancer.update_graph(
                 self.graph_builder,
                 summary,
                 page_node,
                 confidence=summary.confidence
             )
+        else:
+            self.logger.error(f"No page node found for page {page.number + 1}")
         
         return {
             "page_number": page.number,

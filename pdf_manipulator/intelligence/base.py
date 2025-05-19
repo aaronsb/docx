@@ -154,6 +154,30 @@ class IntelligenceManager:
             from pdf_manipulator.intelligence.ollama import OllamaBackend
             return OllamaBackend(backend_config)
         
+        elif backend_name == "ollama_multimodal":
+            from pdf_manipulator.intelligence.ollama_multimodal import OllamaMultimodalBackend
+            # Extract specific parameters for OllamaMultimodalBackend
+            model = backend_config.get("model", "llava:latest")
+            base_url = backend_config.get("base_url", "http://localhost:11434")
+            timeout = backend_config.get("timeout", 120)
+            return OllamaMultimodalBackend(model=model, base_url=base_url, timeout=timeout)
+        
+        elif backend_name == "openai":
+            from pdf_manipulator.intelligence.openai_multimodal import OpenAIMultimodalBackend
+            # Extract specific parameters for OpenAIMultimodalBackend
+            api_key = backend_config.get("api_key")
+            model = backend_config.get("model", "gpt-4o-mini")
+            max_tokens = backend_config.get("max_tokens", 4096)
+            temperature = backend_config.get("temperature", 0.1)
+            timeout = backend_config.get("timeout", 60)
+            return OpenAIMultimodalBackend(
+                api_key=api_key,
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                timeout=timeout
+            )
+        
         elif backend_name == "llama_cpp":
             from pdf_manipulator.intelligence.llama_cpp import LlamaCppBackend
             return LlamaCppBackend(backend_config)
@@ -185,6 +209,13 @@ class IntelligenceManager:
         try:
             from pdf_manipulator.intelligence.ollama import OllamaBackend
             available.append("ollama")
+        except ImportError:
+            pass
+        
+        # OpenAI
+        try:
+            from pdf_manipulator.intelligence.openai_multimodal import OpenAIMultimodalBackend
+            available.append("openai")
         except ImportError:
             pass
         

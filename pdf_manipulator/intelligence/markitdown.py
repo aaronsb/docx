@@ -48,8 +48,13 @@ class MarkitdownBackend(IntelligenceBackend):
             raise IntelligenceError(f"Image file not found: {image_path}")
         
         try:
+            logger.debug(f"Converting image {image_path} with markitdown")
             result = self.converter.convert(str(image_path))
-            return result.text_content
+            text = result.text_content or ""
+            logger.debug(f"Markitdown returned {len(text)} characters")
+            if not text.strip():
+                logger.warning(f"Empty text from markitdown for {image_path}")
+            return text
         except Exception as e:
             raise IntelligenceError(f"Failed to convert image with markitdown: {e}")
     
