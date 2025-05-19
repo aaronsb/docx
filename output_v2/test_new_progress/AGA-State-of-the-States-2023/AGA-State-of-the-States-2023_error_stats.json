@@ -1,0 +1,21 @@
+{
+  "performance": {
+    "total_duration_seconds": 0.00461578369140625,
+    "total_duration_formatted": "0.00s",
+    "steps": {
+      "initialization": 0.0017118453979492188,
+      "pdf_loading": 0.0023653507232666016,
+      "rendering": 0.0005328655242919922,
+      "error_handling": 9.5367431640625e-07
+    },
+    "steps_formatted": {
+      "initialization": "0.00s",
+      "pdf_loading": "0.00s",
+      "rendering": "0.00s",
+      "error_handling": "0.00s"
+    },
+    "timestamp": "2025-05-18T20:56:46.709358"
+  },
+  "error": "Only one live display may be active at once",
+  "status": "failed"
+}

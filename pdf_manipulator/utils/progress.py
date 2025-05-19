@@ -21,8 +21,9 @@ from rich.text import Text
 from rich.spinner import Spinner
 from rich.status import Status
 
+from .logging_config import get_logger, console, LogMessages
 
-console = Console()
+logger = get_logger("progress")
 
 
 class ProcessingProgress:
@@ -150,9 +151,16 @@ class ProcessingProgress:
         """
         if self.status_display:
             stage_name = self.stages.get(self._current_stage, self._current_stage)
-            self.status_display.update(
-                f"[cyan]{stage_name}[/cyan]: Page {current_page}/{self._page_total}"
-            )
+            status_message = f"[cyan]{stage_name}[/cyan]: Page {current_page}/{self._page_total}"
+            self.status_display.update(status_message)
+            
+            # Log the progress for detailed tracking
+            if self._current_stage == "rendering":
+                logger.info(LogMessages.PAGE_RENDER.format(current=current_page, total=self._page_total))
+            elif self._current_stage == "transcription":
+                logger.info(LogMessages.PAGE_TRANSCRIBE.format(current=current_page, total=self._page_total))
+            else:
+                logger.info(f"{stage_name}: Page {current_page}/{self._page_total}")
             
     def stop_page_status(self):
         """Stop the page status display."""
@@ -200,6 +208,7 @@ class DirectConversionProgress:
         
     def show_conversion_start(self):
         """Show conversion start message."""
+        logger.info(LogMessages.DOC_LOAD.format(filename=self.document_path.name))
         console.print()
         console.print(f"[bold cyan]Starting Direct Document Conversion[/bold cyan]")
         console.print(f"[dim]Document:[/dim] {self.document_path.name}")
@@ -216,6 +225,7 @@ class DirectConversionProgress:
         Args:
             message: New status message
         """
+        logger.debug(f"Status: {message}")
         if self.status_display:
             self.status_display.update(f"[cyan]{message}[/cyan]")
             

@@ -7,7 +7,10 @@ from typing import Dict, Any, Optional, Union, List
 from markitdown import MarkItDown
 
 from pdf_manipulator.intelligence.base import IntelligenceBackend, IntelligenceError
-from pdf_manipulator.utils.progress import DirectConversionProgress, console
+from pdf_manipulator.utils.progress import DirectConversionProgress
+from pdf_manipulator.utils.logging_config import get_logger, LogMessages, console
+
+logger = get_logger("markitdown")
 
 
 class MarkitdownBackend(IntelligenceBackend):

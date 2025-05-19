@@ -19,6 +19,7 @@ from pdf_manipulator.utils.config import (
 from pdf_manipulator.intelligence.processor import create_processor, DocumentProcessor
 from pdf_manipulator.intelligence.base import IntelligenceManager
 from pdf_manipulator.memory.memory_adapter import MemoryConfig
+from pdf_manipulator.utils.logging_config import configure_logging
 
 
 @click.group()
@@ -26,12 +27,23 @@ from pdf_manipulator.memory.memory_adapter import MemoryConfig
               help='Path to configuration file')
 @click.option('--verbose/--no-verbose', default=False, 
               help='Enable verbose output')
+@click.option('--log-level', type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR']),
+              default='INFO', help='Set logging level')
+@click.option('--no-file-log', is_flag=True, default=False,
+              help='Disable file logging')
 @click.pass_context
-def cli(ctx, config, verbose):
+def cli(ctx, config, verbose, log_level, no_file_log):
     """Document AI Toolkit: Process and analyze documents with AI."""
+    # Configure logging first
+    configure_logging(
+        console_level='DEBUG' if verbose else log_level,
+        enable_file=not no_file_log
+    )
+    
     # Create context object to pass data between commands
     ctx.ensure_object(dict)
     ctx.obj['verbose'] = verbose
+    ctx.obj['log_level'] = log_level
     
     try:
         # Load configuration

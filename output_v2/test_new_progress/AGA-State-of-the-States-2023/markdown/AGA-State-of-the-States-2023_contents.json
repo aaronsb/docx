@@ -1,0 +1,41 @@
+{
+  "document_name": "AGA-State-of-the-States-2023",
+  "total_pages": 5,
+  "pages": [
+    {
+      "page_number": 1,
+      "image_file": "page_0000.png",
+      "markdown_file": "page_0000.md",
+      "first_line": "State of the",
+      "word_count": 19
+    },
+    {
+      "page_number": 2,
+      "image_file": "page_0001.png",
+      "markdown_file": "page_0001.md",
+      "first_line": "A Message from the American Gaming Association",
+      "word_count": 699
+    },
+    {
+      "page_number": 3,
+      "image_file": "page_0002.png",
+      "markdown_file": "page_0002.md",
+      "first_line": "TABLE OF CONTENTS",
+      "word_count": 251
+    },
+    {
+      "page_number": 4,
+      "image_file": "page_0003.png",
+      "markdown_file": "page_0003.md",
+      "first_line": "ABOUT THIS REPORT",
+      "word_count": 772
+    },
+    {
+      "page_number": 5,
+      "image_file": "page_0004.png",
+      "markdown_file": "page_0004.md",
+      "first_line": "agencies. Gaming regulatory agencies in each state report",
+      "word_count": 491
+    }
+  ]
+}
