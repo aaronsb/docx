@@ -242,10 +242,10 @@ graph TD
     F --> G[AI Assistant<br/>via memory-graph MCP]
     F --> H[Web Interface<br/>for Humans<br/>memory-graph-interface]
     
-    style A fill:#f9d5e5,stroke:#333,stroke-width:1px
-    style E fill:#d0e6fa,stroke:#333,stroke-width:1px
-    style G fill:#d3f8e2,stroke:#333,stroke-width:1px
-    style H fill:#e3c9c9,stroke:#333,stroke-width:1px
+    style A fill:#f9d5e5,stroke:#333,stroke-width:1px,color:#333
+    style E fill:#d0e6fa,stroke:#333,stroke-width:1px,color:#333
+    style G fill:#d3f8e2,stroke:#333,stroke-width:1px,color:#333
+    style H fill:#e3c9c9,stroke:#333,stroke-width:1px,color:#333
 ```
 
 ### Main Components
