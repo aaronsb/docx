@@ -228,9 +228,8 @@ class MemoryAdapter:
         memory_id = str(uuid.uuid4())
         now = datetime.utcnow().isoformat()
         
-        # If metadata provided, prepend to content as JSON
-        if metadata:
-            content = f"METADATA:{json.dumps(metadata)}\n\n{content}"
+        # Metadata is stored separately in the database schema
+        # We don't prepend it to content to avoid contaminating the graph
         
         # Insert memory node
         self.conn.execute(

@@ -109,7 +109,8 @@ class MemoryProcessor:
             path=f"/documents/{Path(pdf_document.filename).stem}",
             tags=['document', 'root', pdf_document.filename],
             summary=self._generate_summary(doc_content) if self.intelligence else None,
-            metadata=doc_metadata
+            # Don't pass metadata as it gets prepended to content, contaminating the graph
+            metadata=None
         )
         results['document_id'] = doc_memory_id
         
@@ -127,7 +128,8 @@ class MemoryProcessor:
                 path=page_path,
                 tags=page_tags,
                 summary=self._generate_summary(content) if self.intelligence else None,
-                metadata={'page_number': page_num, 'document': pdf_document.filename}
+                # Page metadata is already encoded in tags and path
+                metadata=None
             )
             
             if page_memory_id:
@@ -169,11 +171,8 @@ class MemoryProcessor:
                 path=section_path,
                 tags=section_tags,
                 summary=self._generate_summary(section_content) if self.intelligence else None,
-                metadata={
-                    'title': section['title'],
-                    'level': section['level'],
-                    'pages': section['pages']
-                }
+                # Section metadata is already encoded in tags and content
+                metadata=None
             )
             
             if section_memory_id:
