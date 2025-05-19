@@ -365,7 +365,11 @@ class DocumentProcessor:
                         min_content_length=self.memory_config.min_content_length,
                     )
                     
-                    with MemoryProcessor(memory_config, self.intelligence_processor) as mem_processor:
+                    with MemoryProcessor(
+                        memory_config, 
+                        self.intelligence_processor, 
+                        use_toc_first=True
+                    ) as mem_processor:
                         memory_results = mem_processor.process_document(
                             pdf_document=doc,
                             page_content=page_content,
