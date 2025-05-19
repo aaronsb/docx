@@ -168,6 +168,35 @@ The system creates:
 
 These can be used with the memory-graph server to give AI assistants access to your documents in a way they can actually understand and reason about.
 
+### Configuration
+
+The system uses several configuration files that you can customize:
+
+1. **Environment Variables** (`.env`)
+   - Copy `.env.example` to `.env` in the project root
+   - Set your API keys and endpoints:
+   ```
+   # OpenAI API credentials (required for OpenAI backend)
+   OPENAI_API_KEY=your_openai_api_key_here
+   
+   # Ollama configuration (customize if not using default)
+   OLLAMA_BASE_URL=http://localhost:11434
+   ```
+
+2. **Default Configuration** (`pdf_manipulator/config/default_config.yaml`)
+   - General settings for the basic pipeline
+   - Rendering, OCR, and memory settings
+   - Intelligence backend configuration
+
+3. **Semantic Pipeline Configuration** (`pdf_manipulator/config/semantic_pipeline_config.yaml`)
+   - Advanced settings for the semantic pipeline
+   - LLM backend configuration
+   - Graph construction parameters
+   - Ontology settings
+   - Performance tuning
+
+Most settings work out-of-the-box, but you'll need to set up an API key in your `.env` file if using OpenAI.
+
 See [Semantic Pipeline Overview](docs/semantic_pipeline_overview.md) for more details about how it works.
 
 ### Advanced Processing
