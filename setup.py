@@ -1,4 +1,4 @@
-"""Setup script for doc_ai_toolkit package."""
+"""Setup script for memory_graph_extract package."""
 from setuptools import setup, find_packages
 
 # Core requirements for basic functionality
@@ -18,34 +18,45 @@ install_requires = [
     "langchain>=0.0.270",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0",
+    "markitdown>=0.1.0",  # For multi-format support
 ]
 
 # Optional dependencies
 extras_require = {
-    "llama": ["llama-cpp-python>=0.2.0"]
+    "llama": ["llama-cpp-python>=0.2.0"],
+    "dev": ["pytest>=7.0.0", "pytest-cov>=4.0.0"],
+    "test": ["pytest>=7.0.0", "pytest-cov>=4.0.0", "pytest-mock>=3.0.0"],
 }
 
 setup(
-    name="doc_ai_toolkit",
+    name="memory-graph-extract",
     version="0.1.0",
     packages=find_packages(),
     install_requires=install_requires,
     extras_require=extras_require,
     entry_points={
         "console_scripts": [
-            "pdfx=pdf_manipulator.cli.main:main",  # Primary command (PDF extractor)
-            "docaitool=pdf_manipulator.cli.main:main",  # Original for compatibility
+            "mge=pdf_manipulator.cli.main:main",        # Primary command (Memory Graph Extract)
+            "pdfx=pdf_manipulator.cli.main:main",       # Legacy compatibility
+            "docaitool=pdf_manipulator.cli.main:main",  # Original compatibility
         ],
     },
     scripts=[
-        "scripts/pdfx-setup",  # Configuration wizard
+        "scripts/mge-setup",  # Configuration wizard
     ],
-    author="Document AI Toolkit Team",
-    description="A toolkit for document processing and analysis with AI",
+    author="Aaron Bockelie",
+    author_email="aaronsb@gmail.com",
+    description="Semantic extraction framework for the memory-graph ecosystem",
+    long_description=open("README.md").read(),
+    long_description_content_type="text/markdown",
+    url="https://github.com/aaronsb/memory-graph-extract",
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
+        "Topic :: Text Processing :: Linguistic",
+        "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
     python_requires=">=3.8",
+    keywords="semantic extraction, knowledge graph, memory graph, document processing, AI",
 )

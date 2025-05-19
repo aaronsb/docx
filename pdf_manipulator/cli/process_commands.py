@@ -14,7 +14,7 @@ from pdf_manipulator.extractors.ocr import OCRProcessor
 from .base import ProgressReporter, validate_file_exists, validate_directory
 
 
-@click.command(name='process')
+@click.command(name='extract')
 @click.argument('path', type=click.Path(exists=True), callback=validate_file_exists)
 @click.argument('output_dir', type=click.Path(), required=False, callback=validate_directory)
 @click.option('--use-ai/--no-ai', help='Use AI for transcription')
@@ -173,7 +173,7 @@ def process_document(
         # Show memory info if created
         if memory and memory_path.exists():
             click.echo(f"\nSemantic graph created: {memory_path}")
-            click.echo(f"Use 'pdfx memory info -d {memory_path}' to explore")
+            click.echo(f"Use 'mge memory info -d {memory_path}' to explore")
     
     except Exception as e:
         reporter.error(str(e))
@@ -183,7 +183,7 @@ def process_document(
         sys.exit(1)
 
 
-@click.command(name='process-dir')
+@click.command(name='extract-dir')
 @click.argument('directory', type=click.Path(exists=True, file_okay=False, dir_okay=True))
 @click.argument('output_dir', type=click.Path(), required=False)
 @click.option('--pattern', default='*.pdf', help='File pattern to match')

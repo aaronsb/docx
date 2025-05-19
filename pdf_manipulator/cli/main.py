@@ -19,10 +19,10 @@ from .utility_commands import render_pdf, ocr_image, transcribe_image, pdf_info,
               help='Disable file logging')
 @click.pass_context
 def cli(ctx, config, verbose, log_level, no_file_log):
-    """DocX: Semantic Knowledge Graph Extraction for Documents.
+    """Memory Graph Extract: Semantic extraction for the memory-graph ecosystem.
     
-    Transform PDF documents into queryable semantic knowledge graphs,
-    enabling intelligent understanding of document content and relationships.
+    Transform documents into queryable semantic knowledge graphs compatible
+    with memory-graph (AI access) and memory-graph-interface (human access).
     """
     # Create CLI context
     ctx.obj = create_cli_context(
@@ -33,9 +33,15 @@ def cli(ctx, config, verbose, log_level, no_file_log):
     )
 
 
-# Register commands
-cli.add_command(process_document)
-cli.add_command(process_directory)
+# Register commands - new names
+cli.add_command(process_document, name='extract')
+cli.add_command(process_directory, name='extract-dir')
+
+# Legacy compatibility aliases
+cli.add_command(process_document, name='process')
+cli.add_command(process_directory, name='process-dir')
+
+# Other commands
 cli.add_command(memory_group)
 cli.add_command(manage_config)
 cli.add_command(init_config)
@@ -48,7 +54,7 @@ cli.add_command(manage_backends)
 
 def main():
     """Main entry point."""
-    cli(prog_name='pdfx')
+    cli(prog_name='mge')
 
 
 if __name__ == '__main__':

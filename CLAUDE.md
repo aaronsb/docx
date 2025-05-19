@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DocX is a Python framework for transforming PDF documents into semantic knowledge graphs. It goes beyond text extraction to build a deep understanding of document content, creating queryable networks of interconnected information.
+Memory Graph Extract (formerly DocX/pdfx) is a semantic extraction framework that transforms documents into knowledge graphs compatible with the memory-graph ecosystem. It goes beyond text extraction to build a deep understanding of document content, creating queryable networks of interconnected information.
 
 **Core Purpose**: Build semantic knowledge graphs from documents, not just extract text.
 
@@ -16,70 +16,101 @@ The system is designed around semantic understanding:
 2. **Processing Focus**: Relationships, structure, and meaning
 3. **Intelligence**: AI-enhanced understanding with context awareness
 
-## Key Components
+## Key Commands
 
-### Semantic Processing Layer (Primary)
-- `MemoryProcessor`: Orchestrates semantic extraction
-- `MemoryAdapter`: Manages graph storage and relationships  
-- `TOCProcessor`: Analyzes document structure
-- `RelationshipEngine`: Maps content connections
-
-### Intelligence Layer
-- `IntelligenceBackend`: Base for AI processors
-- `MarkitdownBackend`: Direct semantic extraction
-- `OllamaBackend`: AI-enhanced understanding
-- `MemoryEnhancedBackend`: Context-aware processing
-
-### Pipeline Layer
-- `DocumentProcessor`: Manages extraction pipeline
-- `ProcessingProgress`: Visual progress tracking
-
-## Commands and Tools
-
-### Core Semantic Commands
-
+### Primary Commands
 ```bash
-# Process document into semantic graph (primary use)
-pdfx process document.pdf output/ --memory
-
-# Memory graph operations
-pdfx memory search "query" --database graph.db
-pdfx memory info graph.db
-pdfx memory connect doc1.db doc2.db
-pdfx memory export graph.db
+# Extract document into semantic graph
+mge extract document.pdf output/ --memory
 
 # Process directory of documents
-pdfx process-dir papers/ output/ --memory --recursive
+mge extract-dir papers/ output/ --memory --recursive
+
+# Memory graph operations
+mge memory search "query" --database graph.db
+mge memory info graph.db
+mge memory connect doc1.db doc2.db
+mge memory export graph.db
+
+# Development setup
+pip install -e .                    # Basic installation
+pip install -e ".[llama]"          # With llama.cpp support
+pip install -e ".[dev]"            # With test dependencies
 ```
 
-### Development Setup
-
+### Testing Commands
 ```bash
-# Install with semantic graph support
-pip install -e .
+# Install test dependencies if not already installed
+pip install pytest pytest-cov pytest-mock
 
-# Optional: Install with llama.cpp
-pip install -e '.[llama]'
-```
-
-## Processing Pipeline
-
-### Primary Path: Direct Semantic Extraction
-```
-PDF → markitdown → Semantic Analysis → Knowledge Graph
+# Run tests (no test suite currently exists)
+pytest tests/                      # Will need to create tests directory
+pytest --cov=pdf_manipulator      # With coverage
 ```
 
-### Enhanced Path: AI-Powered Understanding
-```
-PDF → Render → AI Analysis → Semantic Extraction → Knowledge Graph
-                    ↓
-              OCR (fallback)
+### Linting & Type Checking
+```bash
+# No specific linting/type checking setup found
+# Consider adding:
+pip install black isort mypy flake8
+black pdf_manipulator/            # Code formatting
+isort pdf_manipulator/            # Import sorting
+mypy pdf_manipulator/             # Type checking
+flake8 pdf_manipulator/           # Linting
 ```
 
-### Context-Aware Path: Memory-Enhanced Processing
+## High-Level Architecture
+
+### Core Components Interaction
 ```
-Existing Graph → Context → AI Processing → Enhanced Graph
+Document → SemanticOrchestrator → IntelligenceBackend → MemoryProcessor → Graph Database
+             ↓                                              ↓
+        ContentExtractor                             GraphBuilder
+             ↓                                              ↓
+        TOCProcessor                              StructureAnalyzer
 ```
+
+### Key Abstractions
+
+1. **SemanticOrchestrator** (`core/semantic_orchestrator.py`)
+   - Central coordinator for the extraction pipeline
+   - Manages flow between components
+   - Handles pipeline configuration
+
+2. **IntelligenceBackend** (`intelligence/base.py`)
+   - Abstract base for AI processors
+   - Implementations: Markitdown, Ollama, LlamaCpp, MemoryEnhanced
+   - Context-aware processing interface
+
+3. **MemoryProcessor** (`memory/memory_processor.py`)
+   - Manages semantic graph construction
+   - Coordinates with GraphBuilder and StructureAnalyzer
+   - Handles cross-document relationships
+
+4. **DocumentProcessor** (`core/pipeline.py`)
+   - Legacy pipeline (being refactored)
+   - Still handles basic extraction flow
+
+### Processing Pipeline Stages
+
+1. **Structure Discovery**
+   - Extract existing TOC or construct from content
+   - Establish document hierarchy
+
+2. **Initial Analysis**
+   - Word stem extraction
+   - Bayesian term analysis
+   - Basic relationship mapping
+
+3. **Semantic Enhancement**
+   - LLM-based understanding
+   - Context-aware page processing
+   - Graph enrichment with high-confidence edges
+
+4. **Output Generation**
+   - JSON graph with ontological tagging
+   - SQLite database (memory-graph format)
+   - Confidence scoring throughout
 
 ## Configuration System
 
@@ -99,14 +130,21 @@ memory:
 
 intelligence:
   default_backend: "memory_enhanced"
-  use_context: true               # Leverage existing knowledge
+  backends:
+    markitdown:
+      # Direct semantic extraction
+    ollama:
+      model: "llava:latest"
+      base_url: "http://localhost:11434"
+    memory_enhanced:
+      use_context: true
 ```
 
-## Important Development Notes
+## Development Guidelines
 
-### When Building Features
+### Adding New Features
 
-1. **Prioritize Semantic Understanding**
+1. **Semantic Understanding First**
    - Features should enhance graph construction
    - Focus on relationships and meaning
    - Consider cross-document connections
@@ -116,38 +154,79 @@ intelligence:
    - Primary output format
    - Compatible with memory-graph-mcp
 
-3. **Intelligence Backends**
-   - Inherit from `IntelligenceBackend`
-   - Implement semantic extraction methods
-   - Support context-aware processing
+3. **Intelligence Backend Pattern**
+   ```python
+   class NewBackend(IntelligenceBackend):
+       def process_page(self, image_path, **kwargs):
+           # Implement semantic extraction
+           pass
+           
+       def process_with_context(self, content, context):
+           # Use existing knowledge
+           pass
+   ```
 
 ### Code Organization
 
-1. **Avoid Monoliths**
-   - Break large files into focused modules
-   - Separate concerns clearly
-   - Use composition over inheritance
+1. **Module Structure**
+   - `core/`: Pipeline orchestration
+   - `intelligence/`: AI backends
+   - `memory/`: Graph building
+   - `cli/`: Command interface
+   - `utils/`: Shared utilities
 
-2. **Processor Hierarchy**
-   - `SemanticProcessor`: Main orchestrator
-   - `ContentProcessor`: Text extraction
-   - `GraphBuilder`: Relationship mapping
-   - `StructureAnalyzer`: Document structure
+2. **Avoid Monoliths**
+   - Keep files under ~500 lines
+   - Single responsibility per class
+   - Use composition over inheritance
 
 ### Error Handling
 
 - Use specific exceptions from `core/exceptions.py`
 - Gracefully handle missing AI backends
-- Provide semantic fallbacks (OCR → basic extraction)
+- Provide semantic fallbacks
 
-### Testing Approach
+## CLI Patterns
 
-- Test graph construction accuracy
-- Verify relationship detection
-- Check semantic search functionality
-- Validate cross-document connections
+Commands follow semantic operations:
 
-## Performance Optimization
+```
+mge [semantic-verb] [input] [options]
+```
+
+Semantic verbs:
+- `extract`: Build semantic graph
+- `memory`: Graph operations
+- `process`: Legacy compatibility
+- `config`: Settings management
+
+Utility verbs:
+- `render`: Generate images
+- `ocr`: Extract text
+
+## Integration Points
+
+1. **memory-graph-mcp**: Direct database compatibility
+2. **memory-graph-interface**: Web UI for graphs
+3. **Claude Desktop**: Knowledge-enhanced assistance
+
+## Future Refactoring
+
+Currently transitioning from `pdfx`/`DocX` naming to `mge` (Memory Graph Extract):
+- CLI commands support both naming schemes
+- Internal modules still use `pdf_manipulator` namespace
+- Consider full rename to `memory_graph_extract` package
+
+## Testing Strategy
+
+When adding tests:
+1. Create `tests/` directory structure
+2. Test semantic extraction accuracy
+3. Verify relationship detection
+4. Validate graph construction
+5. Check cross-document connections
+
+## Performance Considerations
 
 1. **Graph Building**
    - Incremental construction for large docs
@@ -163,49 +242,3 @@ intelligence:
    - Use markitdown for direct extraction
    - Parallelize multi-document processing
    - Cache AI model responses
-
-## Future Directions
-
-1. **Enhanced Semantics**
-   - Concept extraction
-   - Citation mapping
-   - Contradiction detection
-
-2. **Graph Intelligence**
-   - Natural language queries
-   - Path-based reasoning
-   - Knowledge synthesis
-
-3. **Visualization**
-   - Interactive graph exploration
-   - Semantic clustering
-   - Relationship maps
-
-## CLI Pattern
-
-Commands follow semantic operations:
-
-```
-pdfx [semantic-verb] [input] [options]
-```
-
-Semantic verbs:
-- `process`: Extract semantic graph
-- `memory`: Graph operations
-- `analyze`: Deep understanding
-- `connect`: Link documents
-
-Utility verbs:
-- `render`: Generate images
-- `ocr`: Extract text
-- `config`: Manage settings
-
-## Integration Notes
-
-The system integrates with:
-
-1. **memory-graph-mcp**: Direct database compatibility
-2. **Claude Desktop**: Knowledge-enhanced assistance
-3. **Semantic Web**: RDF/OWL export planned
-
-Remember: The goal is semantic understanding, not just text extraction.

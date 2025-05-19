@@ -1,17 +1,21 @@
-# DocX - Semantic Graph PDF Extractor
+# Memory Graph Extract
 
-A Python framework for transforming PDF documents into semantic knowledge graphs, enabling intelligent understanding of document content and relationships.
+A semantic extraction framework that transforms documents into knowledge graphs compatible with the memory-graph ecosystem. Part of a suite of tools for building and interacting with semantic memory.
+
+**Related Tools:**
+- [memory-graph](https://github.com/aaronsb/memory-graph) - MCP server enabling AI language models to interact with semantic graph memory
+- [memory-graph-interface](https://github.com/aaronsb/memory-graph-interface) - Web interface for humans to explore and interact with memory graphs
 
 ## Purpose
 
-DocX goes beyond simple text extraction to build a **semantic understanding** of PDF documents. It creates a knowledge graph that captures:
+Memory Graph Extract goes beyond simple text extraction to build a **semantic understanding** of documents. It creates knowledge graphs that capture:
 
 - Document structure and hierarchies
 - Relationships between pages, sections, and concepts  
 - Context-aware content extraction
 - Cross-document connections and references
 
-The generated semantic graphs are stored in SQLite databases compatible with [memory-graph-mcp](https://github.com/aaronsb/memory-graph), making your documents queryable and interconnected.
+The generated semantic graphs are stored in SQLite databases compatible with the memory-graph ecosystem, making your documents queryable and interconnected across both AI assistants and human interfaces.
 
 ## Core Features
 
@@ -19,16 +23,16 @@ The generated semantic graphs are stored in SQLite databases compatible with [me
 - **Knowledge Graph Construction**: Transform documents into interconnected semantic nodes
 - **Relationship Mapping**: Capture "part_of", "precedes", "relates_to" connections
 - **Context Preservation**: Maintain document structure and meaning
-- **Cross-Document Linking**: Build knowledge networks across multiple PDFs
+- **Cross-Document Linking**: Build knowledge networks across multiple documents
 
 ### Processing Capabilities  
-- **Direct Document Conversion**: Fast semantic extraction via markitdown
+- **Multi-Format Support**: PDF, Word, PowerPoint, Excel, images, and more via markitdown
 - **AI-Enhanced Understanding**: Multiple AI backends for intelligent processing
 - **Structure Detection**: Automatic TOC and section identification
-- **Multi-format Support**: PDF, Word, PowerPoint, Excel, images, and more
+- **Ontological Tagging**: Semantic categorization beyond simple embeddings
 
 ### Memory Graph Features
-- **MCP-Compatible Storage**: Direct integration with memory-graph ecosystem
+- **Ecosystem Compatible**: Direct integration with memory-graph and memory-graph-interface
 - **Semantic Search**: Query documents by meaning, not just keywords
 - **Relationship Traversal**: Follow connections between concepts
 - **Domain Organization**: Separate knowledge domains for different topics
@@ -40,10 +44,10 @@ Build a searchable, interconnected knowledge graph from your document collection
 
 ```bash
 # Process document into semantic graph
-pdfx process research-paper.pdf output/ --memory
+mge extract research-paper.pdf output/ --memory
 
 # Process entire directory
-pdfx process-dir papers/ output/ --memory --recursive
+mge extract-dir papers/ output/ --memory --recursive
 ```
 
 ### 2. Semantic Document Analysis
@@ -51,22 +55,34 @@ Extract meaning and relationships from complex documents:
 
 ```bash
 # Analyze with enhanced AI understanding
-pdfx process technical-manual.pdf output/ --backend ollama --model llava:latest --memory
+mge extract technical-manual.pdf output/ --backend ollama --model llava:latest --memory
 
 # Use existing knowledge to enhance processing
-pdfx process related-doc.pdf output/ --memory --use-context
+mge extract related-doc.pdf output/ --memory --use-context
 ```
 
 ### 3. Cross-Document Intelligence
-Connect related information across multiple PDFs:
+Connect related information across multiple documents:
 
 ```bash
 # Process multiple related documents
-pdfx process doc1.pdf output/ --memory --domain research
-pdfx process doc2.pdf output/ --memory --domain research
+mge extract doc1.pdf output/ --memory --domain research
+mge extract doc2.pdf output/ --memory --domain research
 
 # Query across documents
-pdfx memory search "quantum computing" --domain research
+mge memory search "quantum computing" --domain research
+```
+
+### 4. Integration with Memory Graph Ecosystem
+
+```bash
+# Extract documents for AI assistant access
+mge extract library/*.pdf knowledge/ --memory
+# Use with memory-graph MCP server
+memory-graph serve knowledge/memory_graph.db
+
+# Or explore with human interface
+memory-graph-interface --database knowledge/memory_graph.db
 ```
 
 ## Quick Start
@@ -75,8 +91,8 @@ pdfx memory search "quantum computing" --domain research
 
 ```bash
 # Clone repository
-git clone https://github.com/aaronsb/docx.git
-cd docx
+git clone https://github.com/aaronsb/memory-graph-extract.git
+cd memory-graph-extract
 
 # Install with memory graph support
 pip install -e .
@@ -89,21 +105,21 @@ pip install -e '.[llama]'
 
 ```bash
 # Extract document into semantic graph
-pdfx process document.pdf output/ --memory
+mge extract document.pdf output/ --memory
 
 # View the generated knowledge graph
-pdfx memory info output/document/memory_graph.db
+mge memory info output/document/memory_graph.db
 
 # Search the semantic content
-pdfx memory search "key concepts" --database output/document/memory_graph.db
+mge memory search "key concepts" --database output/document/memory_graph.db
 ```
 
 ### Advanced Processing
 
 ```python
-from pdf_manipulator.core.document import PDFDocument
-from pdf_manipulator.memory.memory_processor import MemoryProcessor
-from pdf_manipulator.memory.memory_adapter import MemoryConfig
+from memory_graph_extract.core.document import Document
+from memory_graph_extract.memory.processor import MemoryProcessor
+from memory_graph_extract.memory.adapter import MemoryConfig
 
 # Configure semantic extraction
 memory_config = MemoryConfig(
@@ -114,12 +130,12 @@ memory_config = MemoryConfig(
 )
 
 # Process document into semantic graph
-with PDFDocument("paper.pdf") as doc:
+with Document("paper.pdf") as doc:
     with MemoryProcessor(memory_config) as processor:
         results = processor.process_document(
-            pdf_document=doc,
+            document=doc,
             page_content=extracted_content,
-            document_metadata={'tags': ['AI', 'research']}
+            metadata={'tags': ['AI', 'research']}
         )
         
 # Query the knowledge graph
@@ -129,32 +145,35 @@ document_graph = processor.get_document_graph(results['document_id'])
 
 ## Architecture
 
-The system is designed around semantic understanding:
+The system is designed around semantic understanding using the memory-graph database format:
 
 ```
 Document → Content Extraction → Semantic Analysis → Knowledge Graph
-                                      ↓
-                              [Memory Graph Database]
-                                      ↓  
-                            Queryable Semantic Network
+                                     ↓
+                            [Memory Graph Database]
+                                     ↓  
+                    ┌────────────────┴────────────────┐
+                    │                                 │
+            [memory-graph]                [memory-graph-interface]
+            (AI Access via MCP)           (Human Web Interface)
 ```
 
 ### Key Components
 
-1. **Semantic Processors**: Extract meaning from content
-2. **Memory Adapter**: Store semantic nodes and relationships
-3. **Graph Builder**: Construct interconnected knowledge networks
-4. **TOC Analyzer**: Detect document structure and hierarchies
-5. **Relationship Engine**: Map connections between concepts
+1. **Semantic Orchestrator**: Manages the extraction pipeline
+2. **Content Extractor**: Extracts text and structure via markitdown
+3. **Graph Builder**: Constructs interconnected knowledge networks
+4. **Structure Analyzer**: Detects document organization and hierarchies
+5. **Relationship Engine**: Maps connections between concepts
 
 ## Output Structure
 
-Processing creates a rich semantic graph:
+Processing creates a rich semantic graph compatible with the memory-graph ecosystem:
 
 ```
 output_directory/
 └── document_name/
-    ├── memory_graph.db       # Semantic knowledge graph
+    ├── memory_graph.db       # Semantic knowledge graph (memory-graph format)
     ├── markdown/             # Extracted content
     │   ├── document.md      # Full document
     │   └── sections/        # Individual sections
@@ -176,7 +195,7 @@ memory:
   enabled: true                    # Enable semantic graph by default
   database_name: "memory_graph.db"
   domain:
-    name: "pdf_processing"
+    name: "documents"
     description: "Document knowledge base"
   
   # Semantic extraction settings
@@ -193,22 +212,35 @@ memory:
 
 ## Integration
 
-### Memory Graph MCP
+### Memory Graph MCP Server
 
-The generated databases work directly with [memory-graph-mcp](https://github.com/aaronsb/memory-graph):
+The generated databases work directly with [memory-graph](https://github.com/aaronsb/memory-graph):
 
 ```bash
-# Use with Claude Desktop
-cp output/document/memory_graph.db ~/.claude/memories/
+# Extract documents
+mge extract documents/*.pdf knowledge/
 
-# Or configure MCP server
-memory-graph-mcp serve output/document/memory_graph.db
+# Serve via MCP for AI assistants
+memory-graph serve knowledge/memory_graph.db
+
+# Use with Claude Desktop, Cody, etc.
+```
+
+### Memory Graph Interface
+
+Explore your knowledge graphs with [memory-graph-interface](https://github.com/aaronsb/memory-graph-interface):
+
+```bash
+# Launch web interface
+memory-graph-interface --database knowledge/memory_graph.db
+
+# Access at http://localhost:8080
 ```
 
 ### Python API
 
 ```python
-from pdf_manipulator.memory.memory_adapter import MemoryAdapter
+from memory_graph_extract.memory.adapter import MemoryAdapter
 
 # Query existing knowledge graph
 adapter = MemoryAdapter(config)
@@ -219,6 +251,29 @@ results = adapter.search_memories("machine learning concepts")
 
 # Traverse relationships
 graph = adapter.get_document_graph(document_id, max_depth=2)
+```
+
+## Command Line Interface
+
+The CLI uses the `mge` command (Memory Graph Extract):
+
+```bash
+# Extract documents
+mge extract document.pdf output/
+mge extract-dir folder/ output/
+
+# Memory operations
+mge memory search "query" --database graph.db
+mge memory info graph.db
+mge memory connect db1.db db2.db
+
+# Configuration
+mge config show
+mge config set memory.enabled true
+
+# Utilities
+mge render document.pdf output/ --dpi 300
+mge ocr image.png output/
 ```
 
 ## Contributing
@@ -236,7 +291,8 @@ MIT License - see LICENSE file for details
 
 ## Acknowledgments
 
-- [memory-graph-mcp](https://github.com/aaronsb/memory-graph) for graph storage format
+- [memory-graph](https://github.com/aaronsb/memory-graph) ecosystem for the database format
+- [memory-graph-interface](https://github.com/aaronsb/memory-graph-interface) for visualization capabilities
 - PyMuPDF for document handling
-- markitdown for direct conversion
+- markitdown for multi-format conversion
 - The AI/ML community for semantic understanding research
