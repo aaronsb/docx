@@ -51,7 +51,8 @@ class MemoryProcessor:
         self,
         pdf_document: PDFDocument,
         page_content: Dict[int, str],
-        document_metadata: Optional[Dict[str, Any]] = None
+        document_metadata: Optional[Dict[str, Any]] = None,
+        semantic_analysis: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Process a PDF document and store content as memories.
         
@@ -123,14 +124,53 @@ class MemoryProcessor:
             page_path = f"/documents/{Path(pdf_document.filename).stem}/pages/{page_num}"
             page_tags = ['page', f'page:{page_num}', pdf_document.filename]
             
-            page_memory_id = self.adapter.store_memory(
-                content=content,
-                path=page_path,
-                tags=page_tags,
-                summary=self._generate_summary(content) if self.intelligence else None,
-                # Page metadata is already encoded in tags and path
-                metadata=None
-            )
+            # Use semantic analysis if available
+            if semantic_analysis and page_num in semantic_analysis:
+                semantic_data = semantic_analysis[page_num]
+                self.logger.info(f"Using semantic analysis for page {page_num}")
+                
+                # Extract semantic summary
+                semantic_summary = None
+                if "semantic_enhancement" in semantic_data:
+                    enhancement = semantic_data["semantic_enhancement"]
+                    semantic_summary = enhancement.get("semantic_summary", "")
+                    self.logger.info(f"Found semantic summary: '{semantic_summary[:100]}...'")
+                    
+                    # Add key insights to tags
+                    key_insights = enhancement.get("key_insights", [])
+                    for insight in key_insights[:3]:  # Limit to top 3 insights
+                        page_tags.append(f"insight:{insight}")
+                    
+                    # Add ontology tags if available
+                    if "metadata" in enhancement and "ontology_tags" in enhancement["metadata"]:
+                        ontology_tags = enhancement["metadata"]["ontology_tags"]
+                        if isinstance(ontology_tags, list):
+                            for tag in ontology_tags[:5]:  # Limit to top 5 ontology tags
+                                page_tags.append(f"ontology:{tag}")
+                
+                # Create a rich semantic content including both summary and markitdown text
+                if semantic_summary:
+                    memory_content = f"# Semantic Summary\n\n{semantic_summary}\n\n# Original Content\n\n{content[:2000]}"
+                else:
+                    memory_content = content
+                
+                page_memory_id = self.adapter.store_memory(
+                    content=memory_content,
+                    path=page_path,
+                    tags=page_tags,
+                    summary=self._generate_summary(memory_content) if self.intelligence else None,
+                    # Page metadata is already encoded in tags and path
+                    metadata=None
+                )
+            else:
+                page_memory_id = self.adapter.store_memory(
+                    content=content,
+                    path=page_path,
+                    tags=page_tags,
+                    summary=self._generate_summary(content) if self.intelligence else None,
+                    # Page metadata is already encoded in tags and path
+                    metadata=None
+                )
             
             if page_memory_id:
                 results['page_memories'][page_num] = page_memory_id
@@ -165,6 +205,23 @@ class MemoryProcessor:
             section_content = section['content']
             section_path = f"/documents/{Path(pdf_document.filename).stem}/sections/{section['id']}"
             section_tags = ['section', f"section:{section['level']}", section['title']]
+            
+            # Use semantic analysis if available for section pages
+            if semantic_analysis:
+                # Collect semantic summaries from pages in this section
+                semantic_summaries = []
+                for page_num in section['pages']:
+                    if page_num in semantic_analysis:
+                        semantic_data = semantic_analysis[page_num]
+                        if "semantic_enhancement" in semantic_data:
+                            enhancement = semantic_data["semantic_enhancement"]
+                            summary = enhancement.get("semantic_summary", "")
+                            if summary:
+                                semantic_summaries.append(summary)
+                
+                # If we have semantic summaries, use them as section content
+                if semantic_summaries:
+                    section_content = f"## {section['title']}\n\n" + "\n\n".join(semantic_summaries)
             
             section_memory_id = self.adapter.store_memory(
                 content=section_content,

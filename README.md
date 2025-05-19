@@ -1,21 +1,37 @@
 # Memory Graph Extract
 
-A semantic extraction framework that transforms documents into knowledge graphs compatible with the memory-graph ecosystem. Part of a suite of tools for building and interacting with semantic memory.
+## What is this?
 
-**Related Tools:**
-- [memory-graph](https://github.com/aaronsb/memory-graph) - MCP server enabling AI language models to interact with semantic graph memory
-- [memory-graph-interface](https://github.com/aaronsb/memory-graph-interface) - Web interface for humans to explore and interact with memory graphs
+Memory Graph Extract is my first attempt at building a semantic conversion pipeline for PDF files. It transforms documents into knowledge graphs that language models can use to recall and reason about information.
 
-## Purpose
+Instead of just extracting text from PDFs, I'm trying to:
 
-Memory Graph Extract goes beyond simple text extraction to build a **semantic understanding** of documents. It creates knowledge graphs that capture:
+1. Understand the structure and meaning of documents
+2. Build connections between related concepts
+3. Create knowledge that AI assistants can actually use
+4. Make document content queryable by meaning, not just keywords
 
-- Document structure and hierarchies
-- Relationships between pages, sections, and concepts  
-- Context-aware content extraction
-- Cross-document connections and references
+This project connects with:
+- [memory-graph](https://github.com/aaronsb/memory-graph) - Lets AI models access the knowledge
+- [memory-graph-interface](https://github.com/aaronsb/memory-graph-interface) - Lets humans explore and tune the graphs
 
-The generated semantic graphs are stored in SQLite databases compatible with the memory-graph ecosystem, making your documents queryable and interconnected across both AI assistants and human interfaces.
+## How it works
+
+The basic idea is simple:
+
+1. **Extract text from PDF** (using different techniques)
+2. **Analyze the content** to find structure, topics and connections
+3. **Build a semantic graph** with nodes (ideas, sections) and edges (relationships)
+4. **Store everything** in a format language models can use
+
+What makes this different from typical document indexing:
+
+- **Semantic edges** connect related information even when the words differ
+- **Deterministic text analysis** finds patterns without requiring AI
+- **Ontological labeling** categorizes information into meaningful types
+- **Multimodal processing** can "see" and understand diagrams and images
+
+The system uses either **OpenAI's API** (better results, costs money) or **local Ollama models** (free, requires good hardware). The quality depends heavily on combining classical text ranking with multimodal AI analysis.
 
 ## Core Features
 
@@ -85,7 +101,9 @@ memory-graph serve knowledge/memory_graph.db
 memory-graph-interface --database knowledge/memory_graph.db
 ```
 
-## Quick Start
+## Getting Started
+
+This project is a work in progress, but here's how to try it out:
 
 ### Installation
 
@@ -94,51 +112,63 @@ memory-graph-interface --database knowledge/memory_graph.db
 git clone https://github.com/aaronsb/memory-graph-extract.git
 cd memory-graph-extract
 
-# Install with memory graph support
+# Basic installation 
 pip install -e .
 
-# Optional: Install with llama.cpp for local AI
+# If you want to try local LLMs (requires good GPU)
 pip install -e '.[llama]'
 ```
 
-### Semantic Pipeline (Recommended)
+### Choosing a Backend
 
-The new semantic pipeline provides enhanced extraction with LLM-powered understanding:
+You have two main options:
+
+1. **OpenAI** (recommended for best results)
+   - Requires an API key
+   - Better understanding of documents
+   - Works on any hardware
+   - Set up with: `export OPENAI_API_KEY=your-key-here`
+
+2. **Ollama** (free, local processing)
+   - Requires decent GPU (8GB+ VRAM)
+   - Install Ollama separately: [ollama.com](https://ollama.com)
+   - Pull a model: `ollama pull llava:latest`
+   - Works offline, no API costs
+
+### Converting Your First Document
 
 ```bash
-# Extract document with semantic analysis
-mge semantic process document.pdf output/
+# Using OpenAI (best quality)
+mge semantic process your-document.pdf output/ --backend openai
 
-# Use specific LLM backend
-mge semantic process document.pdf output/ --backend ollama  # Local with Ollama
-mge semantic process document.pdf output/ --backend openai  # Cloud with GPT-4V
+# Using local Ollama (free)
+mge semantic process your-document.pdf output/ --backend ollama
 
-# Process without LLM (basic extraction)
-mge semantic process document.pdf output/ --no-llm
+# Basic processing without AI (fast but limited understanding)
+mge semantic process your-document.pdf output/ --no-llm
 ```
 
-### Basic Extraction (Legacy)
+### Exploring the Results
 
 ```bash
-# Traditional extraction
-mge extract document.pdf output/ --memory
+# View information about the graph
+mge memory info output/your-document/memory_graph.db
 
-# View the generated knowledge graph
-mge memory info output/document/memory_graph.db
-
-# Search the semantic content
-mge memory search "key concepts" --database output/document/memory_graph.db
+# Search for concepts
+mge memory search "your search terms" --database output/your-document/memory_graph.db
 ```
 
-### Key Features of Semantic Pipeline
+### What's Generated?
 
-- **Multimodal Understanding**: Process both text and images with LLaVA or GPT-4V
-- **Ontological Tagging**: Automatic categorization with domain-specific tags
-- **Dynamic Graph Building**: Confidence-based edges with temporal decay
-- **Parallel Processing**: Fast extraction with configurable workers
-- **Flexible Backends**: Choose between local (Ollama) or cloud (OpenAI) processing
+The system creates:
 
-See [Semantic Pipeline Overview](docs/semantic_pipeline_overview.md) for detailed documentation.
+- **SQLite database** containing the knowledge graph
+- **Markdown files** with extracted text
+- **JSON metadata** describing document structure
+
+These can be used with the memory-graph server to give AI assistants access to your documents in a way they can actually understand and reason about.
+
+See [Semantic Pipeline Overview](docs/semantic_pipeline_overview.md) for more details about how it works.
 
 ### Advanced Processing
 
@@ -169,28 +199,30 @@ similar_docs = processor.find_similar_documents("machine learning")
 document_graph = processor.get_document_graph(results['document_id'])
 ```
 
-## Architecture
+## How It's Built
 
-The system is designed around semantic understanding using the memory-graph database format:
+I've tried to design this system to be understandable even if you're not an expert in knowledge graphs. Here's a simplified view:
 
 ```
-Document → Content Extraction → Semantic Analysis → Knowledge Graph
-                                     ↓
-                            [Memory Graph Database]
-                                     ↓  
-                    ┌────────────────┴────────────────┐
+PDF Document → Text Extraction → Semantic Understanding → Knowledge Graph
+                                        ↓
+                               [SQLite Database]
+                                        ↓  
+                    ┌─────────────────┴───────────────┐
                     │                                 │
-            [memory-graph]                [memory-graph-interface]
-            (AI Access via MCP)           (Human Web Interface)
+              AI Assistant             Web Interface for Humans
+         (via memory-graph MCP)      (memory-graph-interface)
 ```
 
-### Key Components
+### Main Components
 
-1. **Semantic Orchestrator**: Manages the extraction pipeline
-2. **Content Extractor**: Extracts text and structure via markitdown
-3. **Graph Builder**: Constructs interconnected knowledge networks
-4. **Structure Analyzer**: Detects document organization and hierarchies
-5. **Relationship Engine**: Maps connections between concepts
+1. **Text Extractor**: Gets text and images from the PDF
+2. **Structure Analyzer**: Figures out how the document is organized
+3. **Semantic Processor**: Uses AI to understand what the document actually means
+4. **Graph Builder**: Creates connections between related pieces of information
+5. **Memory Adapter**: Saves everything in a format that's useful for language models
+
+The real magic happens in the combination of classical NLP techniques (like TextRank for summarization) and multimodal language models that can "see" and understand the document content. This hybrid approach helps overcome the limitations of either method alone.
 
 ## Output Structure
 
@@ -302,9 +334,33 @@ mge render document.pdf output/ --dpi 300
 mge ocr image.png output/
 ```
 
+## Key Technologies
+
+Instead of listing all dependencies, here are the main technologies powering this project:
+
+- **PyMuPDF**: For reading PDFs and extracting text/images
+- **Markitdown**: For converting various document formats
+- **TextRank**: For extracting important sentences without requiring AI
+- **SQLite**: For storing the knowledge graph in a portable format
+- **OpenAI API / Ollama**: For semantic understanding of content
+- **NLTK & spaCy**: For basic natural language processing
+
+The goal is to combine these tools in a way that creates richer understanding than any single approach could provide.
+
+## Current Status
+
+This is my first attempt at building a semantic knowledge system, so it's still evolving. The system works but has limitations:
+
+- Document understanding varies based on the model quality
+- Large documents may require significant processing time
+- Local models (like LLaVA via Ollama) require good hardware
+- Complex technical documents may not be analyzed perfectly
+
+I'm actively exploring improvements to make the system more accurate and efficient.
+
 ## Contributing
 
-We welcome contributions that enhance semantic understanding:
+I welcome contributions that enhance semantic understanding:
 
 1. Improved relationship detection algorithms
 2. Better semantic extraction methods
@@ -319,6 +375,4 @@ MIT License - see LICENSE file for details
 
 - [memory-graph](https://github.com/aaronsb/memory-graph) ecosystem for the database format
 - [memory-graph-interface](https://github.com/aaronsb/memory-graph-interface) for visualization capabilities
-- PyMuPDF for document handling
-- markitdown for multi-format conversion
 - The AI/ML community for semantic understanding research

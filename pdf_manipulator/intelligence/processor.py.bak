@@ -256,39 +256,20 @@ class DocumentProcessor:
                     text = self.process_image(image_path, custom_prompt=custom_prompt)
                     semantic_info = {}
                 
-                # Make sure text is a string
-                if isinstance(text, list):
-                    logger.warning(f"Text for page {page_num + 1} is a list, converting to string")
-                    text_str = " ".join(text) if text else ""
-                else:
-                    text_str = text if text else ""
-
                 # Save text to markdown file
                 md_path = output_dir / f"{image_path.stem}.md"
                 logger.info(LogMessages.PAGE_MARKDOWN.format(current=i+1, total=len(image_paths)))
                 with open(md_path, 'w', encoding='utf-8') as f:
-                    f.write(f"# Page {page_num + 1}\n\n{text_str}")
+                    f.write(f"# Page {page_num + 1}\n\n{text}")
                 logger.debug(LogMessages.PAGE_COMPLETE.format(page=page_num+1))
-
-                # Save JSON output if we have semantic data
-                if semantic_info:
-                    try:
-                        import json
-                        json_path = output_dir / f"{image_path.stem}.json"
-                        logger.info(f"Saving semantic JSON data for page {page_num + 1}")
-                        with open(json_path, "w", encoding="utf-8") as f:
-                            json.dump(semantic_info, f, indent=2)
-                    except Exception as e:
-                        logger.warning(f"Failed to save JSON for page {page_num + 1}: {e}")
-
                 
                 # Add page info to TOC
                 page_info = {
                     "page_number": page_num + 1,
                     "image_file": str(image_path.name),
                     "markdown_file": str(md_path.name),
-                    "first_line": text_str.split('\n')[0] if text_str else "",
-                    "word_count": len(text_str.split()) if text_str else 0,
+                    "first_line": text.split('\n')[0] if text else "",
+                    "word_count": len(text.split()) if text else 0,
                     "enhanced_flow_used": has_enhanced_flow
                 }
                 
@@ -457,18 +438,11 @@ class DocumentProcessor:
                     text = self.process_image(image_path, custom_prompt=custom_prompt)
                     semantic_info = {}
                 
-                # Make sure text is a string
-                if isinstance(text, list):
-                    logger.warning(f"Text for page {page_num + 1} is a list, converting to string")
-                    text_str = " ".join(text) if text else ""
-                else:
-                    text_str = text if text else ""
-                
                 # Save text to markdown file
                 md_path = output_dir / f"{image_path.stem}.md"
                 logger.info(LogMessages.PAGE_MARKDOWN.format(current=i+1, total=len(image_paths)))
                 with open(md_path, 'w', encoding='utf-8') as f:
-                    f.write(f"# Page {page_num + 1}\n\n{text_str}")
+                    f.write(f"# Page {page_num + 1}\n\n{text}")
                 logger.debug(LogMessages.PAGE_COMPLETE.format(page=page_num+1))
                 
                 # Add page info to TOC
@@ -476,8 +450,8 @@ class DocumentProcessor:
                     "page_number": page_num + 1,
                     "image_file": str(image_path.name),
                     "markdown_file": str(md_path.name),
-                    "first_line": text_str.split('\n')[0] if text_str else "",
-                    "word_count": len(text_str.split()) if text_str else 0,
+                    "first_line": text.split('\n')[0] if text else "",
+                    "word_count": len(text.split()) if text else 0,
                     "enhanced_flow_used": has_enhanced_flow
                 }
                 

@@ -50,6 +50,118 @@ class OllamaMultimodalBackend(IntelligenceBackend):
         
         self.logger.info(f"Initialized Ollama backend with model: {model}")
     
+    def transcribe_image(self, 
+                        image_path: Union[str, Path],
+                        prompt: Optional[str] = None) -> str:
+        """Transcribe text from an image using multimodal model.
+        
+        Args:
+            image_path: Path to image file
+            prompt: Optional custom prompt
+            
+        Returns:
+            Transcribed text
+        """
+        if prompt is None:
+            prompt = "Extract all text from this image. Focus on accuracy and preserve formatting."
+        
+        # Read and encode image
+        image_path = Path(image_path)
+        if not image_path.exists():
+            raise IntelligenceError(f"Image not found: {image_path}")
+            
+        with open(image_path, "rb") as f:
+            image_data = f.read()
+        image_b64 = base64.b64encode(image_data).decode()
+        
+        return self.process(prompt, image_b64)
+    
+    def transcribe_text(self,
+                       text: str,
+                       prompt_template: Optional[str] = None) -> str:
+        """Process text using the model.
+        
+        Args:
+            text: Text to process
+            prompt_template: Optional prompt template
+            
+        Returns:
+            Processed text
+        """
+        if prompt_template is None:
+            prompt_template = "Process this text: {text}"
+            
+        prompt = prompt_template.format(text=text)
+        return self.process(prompt)
+    
+    def process_page_with_context(self,
+                                 image_path: Union[str, Path],
+                                 extracted_text: str,
+                                 context: Optional[Dict[str, Any]] = None) -> str:
+        """Process page with both extracted text and image for enhanced understanding.
+        
+        This is the key method for our enhanced semantic pipeline flow.
+        
+        Args:
+            image_path: Path to page image
+            extracted_text: Previously extracted text (OCR/markitdown) or a unified prompt
+            context: Additional context (TOC, previous summaries, etc.)
+            
+        Returns:
+            Enhanced semantic analysis
+        """
+        # Check if extracted_text is already a comprehensive prompt
+        # (from SemanticProcessor._create_unified_prompt)
+        if "Semantic Analysis Task" in extracted_text and "Response Format" in extracted_text:
+            # This is already a unified prompt from SemanticProcessor
+            prompt = extracted_text
+            self.logger.debug("Using unified prompt from SemanticProcessor")
+        else:
+            # Build traditional enhanced prompt combining extracted text and image analysis
+            prompt = f"""This is a document analysis task. I have already extracted text from this page using OCR. 
+Now I'm providing you with both the extracted text AND the actual image of the page.
+
+EXTRACTED TEXT:
+{extracted_text}
+
+TASK:
+Based on BOTH the extracted text above AND the visual analysis of the page image:
+1. Synthesize a comprehensive understanding of the page content
+2. Identify any information in the image that might be missing from the extracted text
+3. Correct any potential OCR errors based on your visual analysis
+4. Extract semantic meaning, relationships, and structure
+
+IMPORTANT: This is a one-time analysis. Do not ask questions or request additional information.
+
+Provide your synthesis in JSON format:
+{{
+    "enhanced_text": "Corrected/enhanced version of the text",
+    "summary": "Semantic summary of the page",
+    "key_concepts": ["list", "of", "main", "concepts"],
+    "relationships": [["concept1", "relation", "concept2"]],
+    "visual_elements": ["diagrams", "tables", "figures", "etc"],
+    "corrections": ["OCR errors you identified and corrected"],
+    "confidence": 0.95
+}}"""
+
+            # Add context if provided
+            if context:
+                if "toc_structure" in context:
+                    prompt = f"DOCUMENT STRUCTURE:\n{context['toc_structure']}\n\n{prompt}"
+                if "current_section" in context:
+                    prompt = f"CURRENT SECTION: {context['current_section']}\n\n{prompt}"
+        
+        # Read and encode image
+        image_path = Path(image_path)
+        with open(image_path, "rb") as f:
+            image_data = f.read()
+        image_b64 = base64.b64encode(image_data).decode()
+        
+        # Log that we're making a single call to process the page
+        self.logger.info(f"Making single call to Ollama model: {self.model} for comprehensive page analysis")
+        
+        return self.process(prompt, image_b64, json_mode=True)
+    
     def process(self, prompt: str, image: Optional[str] = None, 
                **kwargs) -> str:
         """Process text and optional image with Ollama multimodal models.
@@ -153,6 +265,14 @@ class OllamaMultimodalBackend(IntelligenceBackend):
     def supports_batch_processing(self) -> bool:
         """Check if backend supports batch processing."""
         return False  # Ollama processes one at a time
+    
+    def supports_image_input(self) -> bool:
+        """Check if the backend supports direct image input."""
+        return self.supports_vision
+    
+    def get_name(self) -> str:
+        """Get the name of the intelligence backend."""
+        return f"ollama_multimodal_{self.model}"
     
     def _build_semantic_prompt(self, page_text: str, 
                              context: Optional[Dict[str, Any]] = None) -> str:

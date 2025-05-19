@@ -1,5 +1,6 @@
 """Main CLI entry point for DocX."""
 import click
+import logging
 
 from .base import create_cli_context
 from .process_commands import process_document, process_directory
@@ -7,6 +8,9 @@ from .memory_commands import memory_group
 from .config_commands import manage_config, init_config
 from .utility_commands import render_pdf, ocr_image, transcribe_image, pdf_info, manage_backends
 from .semantic_commands import semantic_group
+from ..utils.env_loader import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 
 @click.group()
@@ -56,6 +60,12 @@ cli.add_command(manage_backends)
 
 def main():
     """Main entry point."""
+    # Load environment variables from .env file
+    env_vars = load_dotenv()
+    if env_vars:
+        logger.debug(f"Loaded {len(env_vars)} environment variables from .env file")
+    
+    # Run CLI with proper program name
     cli(prog_name='mge')
 
 

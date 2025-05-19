@@ -373,6 +373,14 @@ class DocumentProcessor:
                         self.intelligence_processor, 
                         use_toc_first=True
                     ) as mem_processor:
+                        # Extract semantic analysis from TOC
+                        semantic_analysis = {}
+                        if "pages" in toc:
+                            for page in toc["pages"]:
+                                page_num = page.get("page_number", 0) - 1  # Convert to 0-based
+                                if "semantic_analysis" in page:
+                                    semantic_analysis[page_num] = page["semantic_analysis"]
+                        
                         memory_results = mem_processor.process_document(
                             pdf_document=doc,
                             page_content=page_content,
@@ -380,7 +388,8 @@ class DocumentProcessor:
                                 'filename': str(pdf_path),
                                 'base_filename': base_filename,
                                 'transcription_method': stats.get('transcription_method', 'unknown'),
-                            }
+                            },
+                            semantic_analysis=semantic_analysis if semantic_analysis else None
                         )
                         
                         # Add memory results to TOC

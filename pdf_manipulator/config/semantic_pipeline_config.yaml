@@ -3,13 +3,13 @@
 # LLM Backend Configuration
 llm_backend:
   # Backend type: openai, ollama, http
-  type: "ollama"
+  type: "openai"
   
   # Configuration for different backends
   backends:
     openai:
       api_key: "${OPENAI_API_KEY}"
-      model: "gpt-4-vision-preview"
+      model: "gpt-4o-mini"
       max_tokens: 4096
       temperature: 0.1
       timeout: 60
@@ -108,6 +108,20 @@ semantic_enhancement:
   # Number of previous summaries for context
   context_summaries: 3
   
+  # Text summarization settings
+  summarization:
+    # Text summarization ratio (0.0-1.0)
+    # Lower values = more aggressive summarization
+    # 0.0 = maximum summarization (just title/first sentences)
+    # 1.0 = no summarization (use full text)
+    ratio: 0.2
+    
+    # Maximum tokens to keep in summarized text
+    max_tokens: 75
+    
+    # Force summarization even if text is short
+    force: false
+  
   # Prompt templates
   prompts:
     semantic_analysis: |
@@ -117,6 +131,30 @@ semantic_enhancement:
     relationship_extraction: |
       Identify relationships between concepts in this text.
       Focus on semantic connections and dependencies.
+      
+    unified_prompt: |
+      # Semantic Analysis Task
+      
+      ## Page Number
+      Page {page_number} of {total_pages}
+      
+      ## Extracted Text
+      The following text was extracted from this document page:
+      
+      {extracted_text}
+      
+      {previous_context}
+      
+      ## Visual Analysis Task
+      I'll now provide the image of the page. Please analyze both the extracted text AND the image together to:
+      
+      1. Identify the main topic and purpose of this page
+      2. Extract key concepts and relationships between them
+      3. Identify ontological categories and tags
+      4. Determine the content type and domain
+      5. Provide a comprehensive semantic summary
+      6. Note any visual elements (diagrams, tables, equations, etc.)
+      7. Correct any errors in the extracted text based on the image
 
 # Graph Building
 graph_construction:

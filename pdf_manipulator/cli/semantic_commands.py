@@ -7,7 +7,7 @@ from ..core.semantic_orchestrator import SemanticOrchestrator, ProcessingConfig
 from ..config.semantic_config_manager import SemanticConfigManager
 from ..intelligence.ollama_multimodal import OllamaMultimodalBackend
 from ..intelligence.openai_multimodal import OpenAIMultimodalBackend
-from ..utils.logging_config import setup_logging
+from ..utils.logging_config import configure_logging
 
 
 @click.command(name='semantic')
@@ -27,20 +27,43 @@ from ..utils.logging_config import setup_logging
               default='json', help='Output format')
 @click.option('--confidence', type=float, default=0.7, 
               help='Minimum confidence threshold')
+@click.option('--summarization-ratio', type=float, 
+              help='Text summarization ratio (0.0-1.0, 0=max, 1=none)')
+@click.option('--max-tokens', type=int, 
+              help='Maximum tokens to keep in summarized text')
+@click.option('--debug/--no-debug', default=False, 
+              help='Enable detailed debugging output')
+@click.option('--debug-dir', type=click.Path(), 
+              help='Directory to save debug information')
+@click.option('--timeout', type=int, default=60,
+              help='Timeout for LLM requests in seconds')
 @click.pass_context
 def process_semantic(ctx, document_path: str, output_dir: str, 
                     config: Optional[str], backend: Optional[str],
                     model: Optional[str], max_pages: Optional[int],
                     parallel: Optional[int], no_llm: bool,
                     save_intermediate: bool, format: str,
-                    confidence: float):
+                    confidence: float, summarization_ratio: Optional[float] = None,
+                    max_tokens: Optional[int] = None, debug: bool = False,
+                    debug_dir: Optional[str] = None, timeout: int = 60):
     """Process document through semantic extraction pipeline.
     
     This command extracts semantic knowledge graphs from documents,
     building rich relationships and ontological understanding.
+    
+    When using OpenAI backend, you can enable enhanced debugging with the --debug flag:
+    
+      mge semantic process document.pdf output/ --backend openai --model gpt-4o-mini --debug
+      
+    Additional debug options:
+      --debug-dir PATH      Directory to save detailed debug information
+      --timeout SECONDS     Adjust request timeout (default: 60s)
+    
+    The OpenAI backend now defaults to gpt-4o-mini for better cost efficiency.
     """
     # Setup logging
-    setup_logging(ctx.obj.verbose, ctx.obj.log_level, not ctx.obj.no_file_log)
+    log_level = "DEBUG" if ctx.obj.verbose else ctx.obj.log_level
+    configure_logging(console_level=log_level, enable_file=not ctx.obj.no_file_log)
     
     click.echo(click.style("🧠 Starting semantic processing...", fg='blue', bold=True))
     
@@ -56,7 +79,9 @@ def process_semantic(ctx, document_path: str, output_dir: str,
         "no_llm": no_llm,
         "save_intermediate": save_intermediate,
         "format": format,
-        "confidence": confidence
+        "confidence": confidence,
+        "summarization_ratio": summarization_ratio,
+        "max_tokens": max_tokens
     }
     
     # Merge CLI args with config
@@ -90,13 +115,35 @@ def process_semantic(ctx, document_path: str, output_dir: str,
             click.echo(f"Using Ollama backend with model: {intelligence_backend.model}")
             
         elif backend_type == "openai":
+            # Create debug directory if needed
+            debug_output_dir = None
+            if debug and debug_dir:
+                debug_output_dir = debug_dir
+            elif debug:
+                # Create a debug directory in the output folder
+                debug_output_dir = Path(output_dir) / "debug" / "openai"
+                debug_output_dir.mkdir(parents=True, exist_ok=True)
+                click.echo(f"Debug mode enabled - saving debug info to {debug_output_dir}")
+            
+            # Configure OpenAI backend with debug settings
             intelligence_backend = OpenAIMultimodalBackend(
                 api_key=backend_config.get("api_key"),
-                model=model or backend_config.get("model", "gpt-4-vision-preview"),
+                model=model or backend_config.get("model", "gpt-4o-mini"),
                 max_tokens=backend_config.get("max_tokens", 4096),
-                temperature=backend_config.get("temperature", 0.1)
+                temperature=backend_config.get("temperature", 0.1),
+                timeout=timeout,
+                debug_mode=debug,
+                debug_dir=str(debug_output_dir) if debug_output_dir else None,
+                logger=logger
             )
             click.echo(f"Using OpenAI backend with model: {intelligence_backend.model}")
+            
+            # Add debug info
+            if debug:
+                click.echo(f"  Debug mode: Enabled")
+                click.echo(f"  Timeout: {timeout}s")
+                click.echo(f"  Max tokens: {intelligence_backend.max_tokens}")
+                click.echo(f"  Temperature: {intelligence_backend.temperature}")
     else:
         click.echo("LLM enhancement disabled, using basic extraction only")
     
@@ -143,10 +190,31 @@ def process_semantic(ctx, document_path: str, output_dir: str,
         click.echo(f"\n⏱️  Processing time: {results['metadata']['processing_time']:.2f}s")
         
     except Exception as e:
-        click.echo(click.style(f"\n❌ Error: {e}", fg='red', bold=True))
-        if ctx.obj.verbose:
+        error_type = type(e).__name__
+        error_msg = str(e)
+        
+        # Enhanced error reporting
+        click.echo(click.style(f"\n❌ Error ({error_type}): {error_msg}", fg='red', bold=True))
+        
+        # Check for specific error types and provide more helpful messages
+        if "openai" in error_msg.lower():
+            click.echo(click.style("\nOpenAI API Error Details:", fg='yellow'))
+            click.echo("- Check that your API key is valid and not expired")
+            click.echo("- Verify your account has appropriate rate limits")
+            click.echo("- Check network connectivity to OpenAI API")
+            click.echo("- Try using --timeout parameter to increase request timeout")
+            click.echo("\nTry running with --debug flag for detailed error information")
+        
+        # Show traceback in verbose mode
+        if ctx.obj.verbose or debug:
+            click.echo(click.style("\nTraceback:", fg='yellow'))
             import traceback
             traceback.print_exc()
+            
+            # Show additional debug tips if debug mode is not enabled
+            if not debug:
+                click.echo(click.style("\nTip: Run with --debug flag for enhanced error diagnostics", fg='cyan'))
+        
         ctx.exit(1)
 
 
@@ -157,7 +225,8 @@ def process_semantic(ctx, document_path: str, output_dir: str,
 @click.pass_context
 def test_semantic_pipeline(ctx, backend: str, samples: int):
     """Test the semantic pipeline with sample data."""
-    setup_logging(ctx.obj.verbose, ctx.obj.log_level, not ctx.obj.no_file_log)
+    log_level = "DEBUG" if ctx.obj.verbose else ctx.obj.log_level
+    configure_logging(console_level=log_level, enable_file=not ctx.obj.no_file_log)
     
     click.echo(click.style("🧪 Testing semantic pipeline...", fg='yellow', bold=True))
     
