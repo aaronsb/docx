@@ -1,110 +1,175 @@
-# PDF Extractor Architecture
+# DocX Semantic Architecture
 
-This document outlines the architectural vision for the PDF Extractor tool (pdfx), with a focus on the hierarchical processing workflow and the integration of multiple AI backends.
+This document outlines the architecture of DocX, focusing on its core purpose: transforming PDF documents into semantic knowledge graphs for intelligent understanding.
+
+## Core Vision
+
+DocX is designed as a semantic understanding engine that creates queryable knowledge graphs from PDF documents. Instead of just extracting text, it builds a semantic network capturing:
+
+- Document structure and hierarchies
+- Relationships between content elements
+- Cross-document connections
+- Contextual understanding of information
+
+## Architecture Overview
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   Document      │────▶│    Semantic      │────▶│   Knowledge     │
+│   Input         │     │    Processor     │     │   Graph         │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+        │                       │                        │
+        │                       ▼                        │
+        │               ┌──────────────────┐            │
+        │               │   Intelligence   │            │
+        │               │   Backends       │            │
+        │               └──────────────────┘            │
+        │                       │                        ▼
+        │                       ▼                ┌─────────────────┐
+        │               ┌──────────────────┐     │  Memory Graph   │
+        └──────────────▶│  TOC Analyzer    │────▶│  Database       │
+                        └──────────────────┘     └─────────────────┘
+```
+
+## Component Hierarchy
+
+### 1. Semantic Processing Layer (Primary)
+The core of the system, focused on understanding and graph construction:
+
+- **MemoryProcessor**: Orchestrates semantic extraction and graph building
+- **MemoryAdapter**: Manages knowledge graph storage and relationships
+- **TOCProcessor**: Analyzes document structure for semantic understanding
+- **RelationshipEngine**: Maps connections between content elements
+
+### 2. Intelligence Layer
+AI backends that enhance semantic understanding:
+
+- **IntelligenceBackend** (base)
+  - MarkitdownBackend: Direct semantic extraction
+  - OllamaBackend: AI-enhanced understanding
+  - LlamaCppBackend: Local model integration
+  - MemoryEnhancedBackend: Context-aware processing
+
+### 3. Content Extraction Layer
+Tools for pulling content from documents:
+
+- **PDFDocument**: Core PDF handling
+- **ImageRenderer**: Converts pages when needed
+- **OCRProcessor**: Fallback text extraction
+
+### 4. Pipeline Layer
+Orchestration and coordination:
+
+- **DocumentProcessor**: Manages the semantic extraction pipeline
+- **ProcessingProgress**: Tracks pipeline execution
+
+## Semantic Graph Structure
+
+The knowledge graph captures multiple relationship types:
+
+```
+Document (root)
+├── Page Nodes
+│   ├── "part_of" → Document
+│   └── "precedes/follows" → Other Pages
+├── Section Nodes
+│   ├── "part_of" → Document
+│   ├── "contains" → Pages
+│   └── "relates_to" → Other Sections
+└── Concept Nodes
+    ├── "mentioned_in" → Pages/Sections
+    └── "related_to" → Other Concepts
+```
+
+## Processing Pipeline
+
+### 1. Direct Semantic Extraction (Primary Path)
+```
+PDF → Markitdown → Semantic Analysis → Knowledge Graph
+```
+
+### 2. Enhanced AI Processing (When Needed)
+```
+PDF → Render → AI Analysis → Semantic Extraction → Knowledge Graph
+         ↓
+       OCR (fallback)
+```
+
+### 3. Memory-Enhanced Processing
+```
+Existing Graph → Context → AI Processing → Enhanced Graph
+```
 
 ## Command Structure
 
-The tool follows a consistent and intuitive command pattern:
+The CLI reflects the semantic focus:
 
 ```
-pdfx [verb] [input] [output] [options]
+pdfx process     - Extract semantic graph from document
+pdfx memory      - Interact with knowledge graphs
+  ├── search     - Semantic search across graphs
+  ├── info       - Graph statistics and structure
+  ├── connect    - Link related documents
+  └── export     - Export graph data
+
+pdfx render      - Utility for image generation
+pdfx ocr         - Utility for text extraction
 ```
 
-Where each verb represents a specific processing chain, building on simpler operations to create more complex workflows.
+## Configuration Philosophy
 
-## Processing Hierarchy
+Configuration emphasizes semantic understanding:
 
-The processing verbs form a natural hierarchy, with each level building on the previous:
-
+```yaml
+memory:
+  enabled: true          # Semantic graph is primary output
+  domain:
+    name: "knowledge"    # Organize by knowledge domains
+  extraction:
+    relationships: true  # Detect connections
+    summaries: true     # Generate semantic summaries
+    
+intelligence:
+  default_backend: "memory_enhanced"  # Use context-aware processing
+  use_context: true                  # Leverage existing knowledge
 ```
-PDF → render → images → OCR/AI → text → structure → sections → insights
-```
-
-### Core Verbs and Processing Chains
-
-1. **`render`** - Convert PDF pages to images
-   - **Input**: PDF document
-   - **Output**: PNG images
-   - **Components**: PDFDocument, ImageRenderer
-   - **Example**: `pdfx render document.pdf images/`
-
-2. **`ocr`** - Extract text from images using OCR
-   - **Input**: Image
-   - **Output**: Raw text
-   - **Components**: OCRProcessor
-   - **Example**: `pdfx ocr image.png text.txt`
-   - **Chain**: Operates directly on an image
-
-3. **`transcribe`** - Use AI to extract text from images
-   - **Input**: Image
-   - **Output**: Enhanced text (formatted markdown)
-   - **Components**: IntelligenceBackend (Ollama, LlamaCpp, LlamaCppHttp)
-   - **Example**: `pdfx transcribe image.png markdown.md`
-   - **Chain**: Operates directly on an image
-
-4. **`extract`** - Extract structured content from a PDF
-   - **Input**: PDF document
-   - **Output**: Structured content (TOC, text, metadata)
-   - **Components**: PDFDocument, ImageRenderer, OCRProcessor/IntelligenceBackend, DocumentAnalyzer
-   - **Example**: `pdfx extract document.pdf output/`
-   - **Chain**: render → ocr/transcribe → basic structure extraction
-
-5. **`process`** - Complete document processing with advanced AI
-   - **Input**: PDF document
-   - **Output**: Comprehensive markdown conversion with intelligent structure
-   - **Components**: DocumentProcessor + Advanced AI (Claude/OpenAI)
-   - **Example**: `pdfx process document.pdf output/`
-   - **Chain**: render → ocr/transcribe → extract → section identification → advanced AI transformation
-
-## Intelligence Backend Architecture
-
-The system uses a flexible intelligence backend architecture that supports multiple AI models:
-
-1. **Local Processing**
-   - Ollama API (easy setup, multimodal)
-   - LlamaCpp direct integration (via Python bindings)
-   - LlamaCpp HTTP server (custom optimized builds)
-
-2. **Advanced API Processing** (future)
-   - Claude API (for sophisticated document understanding)
-   - OpenAI API (for multimodal GPT-4 processing)
-
-Each backend implements a common interface (BaseTranscriber) ensuring consistency across the system.
-
-## Process Verb Vision
-
-The `process` verb represents the most sophisticated operation, designed to:
-
-1. Render the PDF to high-quality images
-2. Extract text using the best available method (OCR or AI transcription)
-3. Identify logical document sections and structure
-4. Pass these sections to a sophisticated AI model (Claude/GPT-4)
-5. Use specially crafted prompts to transform each section into well-structured markdown
-6. Maintain the document's logical flow and relationships
-7. Preserve tables, lists, and other complex elements
-8. Combine the processed sections into a cohesive markdown document
-
-This approach leverages both the strengths of specialized document processing tools and the natural language understanding capabilities of large language models.
-
-## Configuration System
-
-The system uses a flexible YAML-based configuration that allows users to:
-
-1. Configure rendering parameters (DPI, zoom, etc.)
-2. Set up OCR preferences (language, Tesseract path)
-3. Choose and configure AI backends
-4. Define processing parameters and prompts
-
-The configuration can be managed through:
-- Manual editing of YAML files
-- Interactive setup script (`pdfx-setup`)
-- Command-line options that override config settings
 
 ## Future Directions
 
-1. **Section Intelligence**: Enhanced ability to identify logical document sections
-2. **Custom Backends**: Support for user-defined AI backends
-3. **Specialized Prompts**: Domain-specific prompts for different document types
-4. **Pipeline Extensions**: Allow users to add custom processing steps
-5. **Document Understanding**: Deep semantic understanding of document content
-6. **Incremental Processing**: Process documents in chunks to handle very large documents
+1. **Advanced Relationship Detection**
+   - Concept extraction and linking
+   - Citation and reference mapping
+   - Temporal relationship understanding
+
+2. **Cross-Document Intelligence**
+   - Automatic document clustering
+   - Knowledge domain discovery
+   - Contradiction detection
+
+3. **Semantic Query Engine**
+   - Natural language graph queries
+   - Path-based reasoning
+   - Knowledge synthesis
+
+4. **Graph Visualization**
+   - Interactive knowledge maps
+   - Relationship exploration tools
+   - Semantic clustering views
+
+## Integration Points
+
+The system is designed to integrate with:
+
+1. **Memory Graph MCP**: Direct database compatibility
+2. **Claude Desktop**: Knowledge-enhanced AI assistance
+3. **External Knowledge Bases**: Import/export capabilities
+4. **Semantic Web Standards**: RDF/OWL export options
+
+## Performance Considerations
+
+- Incremental graph building for large documents
+- Cached relationship calculations
+- Parallel processing for multi-document analysis
+- Optimized graph queries via SQLite indexes
+
+The architecture prioritizes semantic understanding while maintaining flexibility for different document types and processing needs.

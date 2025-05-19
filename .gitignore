@@ -39,8 +39,15 @@ wheels/
 *.sublime-project
 *.sublime-workspace
 
-# Project specific
-output_dir/
+# Test and output directories
+test_output/
+output/
+output_v2/
+test_*/
+*.db
+!/pdf_manipulator/memory/schema*.sql
+
+# PDF and image files (except examples)
 *.png
 *.pdf
 !examples/*.pdf
@@ -48,12 +55,14 @@ output_dir/
 # Log files
 *.log
 logs/
+.pdf_manipulator/
 
 # Local configuration
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.pdf_manipulator/
 
 # Coverage reports
 htmlcov/
@@ -65,3 +74,34 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
+
+# Pytest
+.pytest_cache/
+pytest_cache/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# Linux
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/

@@ -1,0 +1,18 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Mark files that should not be modified
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.db binary
+
+# Set diff behavior for common files
+*.py diff=python
+*.md diff=markdown
+
+# Mark generated files
+*.egg-info/** linguist-generated=true
+dist/** linguist-generated=true
+build/** linguist-generated=true

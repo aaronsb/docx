@@ -33,8 +33,8 @@ setup(
     extras_require=extras_require,
     entry_points={
         "console_scripts": [
-            "pdfx=pdf_manipulator.cli.commands:cli",  # Primary command (PDF extractor)
-            "docaitool=pdf_manipulator.cli.commands:cli",  # Original for compatibility
+            "pdfx=pdf_manipulator.cli.main:main",  # Primary command (PDF extractor)
+            "docaitool=pdf_manipulator.cli.main:main",  # Original for compatibility
         ],
     },
     scripts=[
