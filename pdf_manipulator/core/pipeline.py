@@ -12,6 +12,9 @@ from pdf_manipulator.core.exceptions import PDFManipulatorError
 from pdf_manipulator.memory.memory_processor import MemoryProcessor
 from pdf_manipulator.memory.memory_adapter import MemoryConfig
 from pdf_manipulator.utils.progress import ProcessingProgress
+from pdf_manipulator.utils.logging_config import get_logger, LogMessages
+
+logger = get_logger("pipeline")
 
 
 class PerformanceTimer:

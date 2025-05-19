@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Union, List, Callable
 
 from pdf_manipulator.intelligence.base import IntelligenceBackend, IntelligenceManager, IntelligenceError
+from pdf_manipulator.utils.logging_config import get_logger, LogMessages
+
+logger = get_logger("intelligence")
 
 
 class DocumentProcessor:
@@ -141,12 +144,15 @@ class DocumentProcessor:
                 page_num = i
                 
                 # Process the image
+                logger.info(LogMessages.PAGE_TRANSCRIBE.format(current=i+1, total=len(image_paths)))
                 text = self.process_image(image_path, custom_prompt=custom_prompt)
                 
                 # Save text to markdown file
                 md_path = output_dir / f"{image_path.stem}.md"
+                logger.info(LogMessages.PAGE_MARKDOWN.format(current=i+1, total=len(image_paths)))
                 with open(md_path, 'w', encoding='utf-8') as f:
                     f.write(f"# Page {page_num + 1}\n\n{text}")
+                logger.debug(LogMessages.PAGE_COMPLETE.format(page=page_num+1))
                 
                 # Add page info to TOC
                 page_info = {
@@ -214,12 +220,15 @@ class DocumentProcessor:
                     progress.update_page_status(page_num + 1)
                 
                 # Process the image
+                logger.info(LogMessages.PAGE_TRANSCRIBE.format(current=i+1, total=len(image_paths)))
                 text = self.process_image(image_path, custom_prompt=custom_prompt)
                 
                 # Save text to markdown file
                 md_path = output_dir / f"{image_path.stem}.md"
+                logger.info(LogMessages.PAGE_MARKDOWN.format(current=i+1, total=len(image_paths)))
                 with open(md_path, 'w', encoding='utf-8') as f:
                     f.write(f"# Page {page_num + 1}\n\n{text}")
+                logger.debug(LogMessages.PAGE_COMPLETE.format(page=page_num+1))
                 
                 # Add page info to TOC
                 page_info = {
