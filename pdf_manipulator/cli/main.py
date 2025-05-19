@@ -6,6 +6,7 @@ from .process_commands import process_document, process_directory
 from .memory_commands import memory_group
 from .config_commands import manage_config, init_config
 from .utility_commands import render_pdf, ocr_image, transcribe_image, pdf_info, manage_backends
+from .semantic_commands import semantic_group
 
 
 @click.group()
@@ -43,6 +44,7 @@ cli.add_command(process_directory, name='process-dir')
 
 # Other commands
 cli.add_command(memory_group)
+cli.add_command(semantic_group)
 cli.add_command(manage_config)
 cli.add_command(init_config)
 cli.add_command(render_pdf)

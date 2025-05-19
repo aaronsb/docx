@@ -1,0 +1,254 @@
+# Semantic Pipeline Configuration
+
+# LLM Backend Configuration
+llm_backend:
+  # Backend type: openai, ollama, http
+  type: "ollama"
+  
+  # Configuration for different backends
+  backends:
+    openai:
+      api_key: "${OPENAI_API_KEY}"
+      model: "gpt-4-vision-preview"
+      max_tokens: 4096
+      temperature: 0.1
+      timeout: 60
+    
+    ollama:
+      base_url: "http://localhost:11434"
+      model: "llava:latest"
+      timeout: 120
+      temperature: 0.1
+      top_p: 0.9
+      seed: 42
+    
+    http:
+      endpoint_url: "${LLM_ENDPOINT_URL}"
+      headers:
+        Authorization: "Bearer ${LLM_API_TOKEN}"
+      timeout: 120
+
+# Pipeline Configuration
+pipeline:
+  # Enable LLM enhancement
+  enable_llm: true
+  
+  # Maximum pages to process (null for all)
+  max_pages: null
+  
+  # Number of pages to process in parallel
+  parallel_pages: 4
+  
+  # Context window size for LLM
+  context_window: 4096
+  
+  # Minimum confidence threshold
+  confidence_threshold: 0.7
+  
+  # Enable OCR fallback
+  enable_ocr_fallback: true
+  
+  # Save intermediate results
+  save_intermediate: false
+  
+  # Output format: json, sqlite, both
+  output_format: "json"
+
+# Structure Discovery
+structure_discovery:
+  # Prefer native PDF TOC
+  prefer_native_toc: true
+  
+  # Fall back to markitdown
+  fallback_to_markitdown: true
+  
+  # Heading detection patterns
+  heading_patterns:
+    - pattern: '^(\d+(?:\.\d+)*)\s+([A-Z].*?)$'
+      type: numbered
+    - pattern: '^(Chapter\s+\d+:?)\s+(.+)$'
+      type: chapter
+    - pattern: '^(#{1,6})\s+(.+)$'
+      type: markdown
+  
+  # Minimum confidence for heading detection
+  heading_confidence: 0.6
+
+# Content Analysis
+content_analysis:
+  # Use word stems
+  use_word_stems: true
+  
+  # Bayesian analysis threshold
+  bayesian_threshold: 0.3
+  
+  # Minimum term frequency
+  min_term_frequency: 2
+  
+  # Relationship detection
+  relationship_detection:
+    enabled: true
+    min_strength: 0.5
+    indicators:
+      - phrase: "is a"
+        type: "type_of"
+      - phrase: "contains"
+        type: "contains"
+      - phrase: "relates to"
+        type: "relates_to"
+
+# Semantic Enhancement
+semantic_enhancement:
+  # Maximum context tokens
+  max_context_tokens: 4096
+  
+  # Confidence threshold for summaries
+  confidence_threshold: 0.8
+  
+  # Number of previous summaries for context
+  context_summaries: 3
+  
+  # Prompt templates
+  prompts:
+    semantic_analysis: |
+      You are analyzing a document page within the context of its structure. 
+      Extract semantic information and relationships.
+    
+    relationship_extraction: |
+      Identify relationships between concepts in this text.
+      Focus on semantic connections and dependencies.
+
+# Graph Building
+graph_construction:
+  # Edge scoring parameters
+  edge_scoring:
+    decay_rate: 0.1
+    semantic_multiplier: 1.5
+    recency_hours: 24
+  
+  # Ontology domains
+  ontology_domains:
+    technical:
+      - algorithm
+      - data_structure
+      - system
+      - protocol
+    business:
+      - process
+      - strategy
+      - metric
+      - organization
+    academic:
+      - theory
+      - methodology
+      - research
+      - hypothesis
+    general:
+      - concept
+      - definition
+      - example
+      - summary
+  
+  # Node type priorities
+  node_priorities:
+    document: 1.0
+    section: 0.9
+    page: 0.8
+    concept: 0.7
+    entity: 0.6
+
+# Performance Settings
+performance:
+  # Cache settings
+  cache:
+    enabled: true
+    ttl: 3600  # seconds
+    max_size: 1000  # entries
+  
+  # Memory limits
+  memory:
+    max_graph_nodes: 10000
+    max_graph_edges: 50000
+    page_buffer_size: 100
+  
+  # Processing timeouts
+  timeouts:
+    page_processing: 300  # seconds
+    llm_request: 120
+    total_document: 3600
+
+# Output Configuration
+output:
+  # JSON output settings
+  json:
+    pretty_print: true
+    include_metadata: true
+    compress: false
+  
+  # SQLite settings (memory-graph format)
+  sqlite:
+    database_name: "memory_graph.db"
+    domain:
+      name: "documents"
+      description: "Document knowledge base"
+    batch_size: 100
+  
+  # Visualization settings
+  visualization:
+    enabled: false
+    format: "mermaid"
+    max_nodes: 100
+
+# Testing Configuration
+testing:
+  # Use mock LLM backend
+  use_mock_backend: false
+  
+  # Mock responses file
+  mock_responses_file: "test_data/mock_responses.json"
+  
+  # Test data directory
+  test_data_dir: "test_data/"
+  
+  # Validation settings
+  validation:
+    check_relationships: true
+    verify_ontology: true
+    test_confidence_scores: true
+
+# Logging Configuration
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
+  
+  # Log format
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # File logging
+  file:
+    enabled: true
+    path: "logs/semantic_pipeline.log"
+    max_size: 10485760  # 10MB
+    backup_count: 5
+  
+  # Console logging
+  console:
+    enabled: true
+    colorized: true
+
+# Error Handling
+error_handling:
+  # Continue on errors
+  continue_on_error: true
+  
+  # Maximum retries
+  max_retries: 3
+  
+  # Retry delay (seconds)
+  retry_delay: 5
+  
+  # Fallback strategies
+  fallbacks:
+    llm_failure: "use_basic_extraction"
+    ocr_failure: "skip_page"
+    structure_failure: "construct_from_content"
