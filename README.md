@@ -101,10 +101,26 @@ pip install -e .
 pip install -e '.[llama]'
 ```
 
-### Basic Semantic Extraction
+### Semantic Pipeline (Recommended)
+
+The new semantic pipeline provides enhanced extraction with LLM-powered understanding:
 
 ```bash
-# Extract document into semantic graph
+# Extract document with semantic analysis
+mge semantic process document.pdf output/
+
+# Use specific LLM backend
+mge semantic process document.pdf output/ --backend ollama  # Local with Ollama
+mge semantic process document.pdf output/ --backend openai  # Cloud with GPT-4V
+
+# Process without LLM (basic extraction)
+mge semantic process document.pdf output/ --no-llm
+```
+
+### Basic Extraction (Legacy)
+
+```bash
+# Traditional extraction
 mge extract document.pdf output/ --memory
 
 # View the generated knowledge graph
@@ -113,6 +129,16 @@ mge memory info output/document/memory_graph.db
 # Search the semantic content
 mge memory search "key concepts" --database output/document/memory_graph.db
 ```
+
+### Key Features of Semantic Pipeline
+
+- **Multimodal Understanding**: Process both text and images with LLaVA or GPT-4V
+- **Ontological Tagging**: Automatic categorization with domain-specific tags
+- **Dynamic Graph Building**: Confidence-based edges with temporal decay
+- **Parallel Processing**: Fast extraction with configurable workers
+- **Flexible Backends**: Choose between local (Ollama) or cloud (OpenAI) processing
+
+See [Semantic Pipeline Overview](docs/semantic_pipeline_overview.md) for detailed documentation.
 
 ### Advanced Processing
 
