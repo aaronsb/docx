@@ -319,6 +319,30 @@ pdfx config --project
 pdfx config --editor
 ```
 
+### Logging Configuration
+
+The toolkit includes a unified logging system with configurable verbosity levels:
+
+```bash
+# Default INFO level
+pdfx process document.pdf output/
+
+# Verbose (DEBUG) output
+pdfx --verbose process document.pdf output/
+
+# Specific log level
+pdfx --log-level WARNING process document.pdf output/
+
+# Disable file logging
+pdfx --no-file-log process document.pdf output/
+```
+
+Log files are written to `~/.pdf_manipulator/logs/pdf_manipulator.log` by default. Logging levels:
+- **DEBUG**: Detailed information, typically of interest only when diagnosing problems
+- **INFO**: Informational messages that confirm things are working as expected (default)
+- **WARNING**: An indication that something unexpected happened, but the software is still functioning
+- **ERROR**: A serious problem has occurred, and the software may not be able to continue
+
 ## Component Setup
 
 ### markitdown Setup (Default Backend)

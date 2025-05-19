@@ -277,7 +277,7 @@ def ocr(ctx, image_path: str, lang: Optional[str], tessdata_dir: Optional[str],
 
 
 @cli.command()
-@click.argument('pdf_path', type=click.Path(exists=True))
+@click.argument('path', type=click.Path(exists=True))
 @click.argument('output_dir', type=click.Path(), required=False)
 @click.option('--use-ai/--no-ai', help='Use AI for transcription')
 @click.option('--backend', help='AI backend to use (markitdown, ollama, llama_cpp, llama_cpp_http)')
@@ -294,7 +294,7 @@ def ocr(ctx, image_path: str, lang: Optional[str], tessdata_dir: Optional[str],
 @click.pass_context
 def process(
     ctx,
-    pdf_path: str,
+    path: str,
     output_dir: Optional[str],
     use_ai: Optional[bool],
     backend: Optional[str],
@@ -309,7 +309,10 @@ def process(
     direct: Optional[bool],
     progress: bool,
 ):
-    """Process a PDF document through the complete pipeline."""
+    """Process a PDF document or directory of PDFs through the complete pipeline.
+    
+    If a directory is provided, all PDF files will be processed recursively,
+    maintaining the directory structure in the output."""
     config = ctx.obj['config']
     verbose = ctx.obj['verbose']
     
@@ -352,6 +355,24 @@ def process(
     output_dir = Path(output_dir)
     os.makedirs(output_dir, exist_ok=True)
     
+    # Check if input is a directory
+    input_path = Path(path)
+    pdf_files = []
+    
+    if input_path.is_dir():
+        # Find all PDF files recursively
+        pdf_files = list(input_path.rglob("*.pdf"))
+        if not pdf_files:
+            click.echo(f"No PDF files found in directory: {input_path}", err=True)
+            return
+        click.echo(f"Found {len(pdf_files)} PDF files to process")
+    else:
+        # Single file processing
+        if not input_path.suffix.lower() == '.pdf':
+            click.echo(f"Error: {input_path} is not a PDF file", err=True)
+            return
+        pdf_files = [input_path]
+    
     # Parse page range if specified
     page_range = None
     if pages:
@@ -391,30 +412,43 @@ def process(
             min_content_length=memory_cfg.get('creation', {}).get('min_content_length', 50),
         )
     
-    try:
-        # Initialize document processor
-        if use_ai:
-            try:
-                # Create intelligence-based processor
-                processor = create_processor(
-                    config=config,
-                    ocr_processor=ocr_processor,
-                    backend_name=backend,
-                )
-                
-                if verbose:
-                    click.echo(f"Using AI backend: {backend}")
-                
-                # Check if we should use direct conversion with markitdown
-                if direct is None and backend == "markitdown":
-                    direct = True  # Default to direct conversion for markitdown
-                elif direct is None:
-                    direct = False  # Default to rendering for other backends
-                
-                # Check if we're doing direct conversion
-                pdf_path = Path(pdf_path)
+    # Process each PDF file
+    for pdf_index, pdf_path in enumerate(pdf_files):
+        try:
+            # If processing multiple files, show which one we're on
+            if len(pdf_files) > 1:
+                click.echo(f"\nProcessing file {pdf_index + 1}/{len(pdf_files)}: {pdf_path.name}")
+            
+            # Create subdirectory structure for multiple files
+            if input_path.is_dir():
+                # Preserve relative path structure
+                relative_path = pdf_path.relative_to(input_path)
+                base_dir = output_dir / relative_path.parent
+                os.makedirs(base_dir, exist_ok=True)
+                base_filename = pdf_path.stem
+                doc_dir = base_dir / base_filename
+            else:
                 base_filename = pdf_path.stem
                 doc_dir = output_dir / base_filename
+            
+            # Initialize document processor per file (to reset state)
+            if use_ai:
+                try:
+                    # Create intelligence-based processor
+                    processor = create_processor(
+                        config=config,
+                        ocr_processor=ocr_processor,
+                        backend_name=backend,
+                    )
+                    
+                    if verbose:
+                        click.echo(f"Using AI backend: {backend}")
+                    
+                    # Check if we should use direct conversion with markitdown
+                    if direct is None and backend == "markitdown":
+                        direct = True  # Default to direct conversion for markitdown
+                    elif direct is None:
+                        direct = False  # Default to rendering for other backends
                 
                 if direct and backend == "markitdown":
                     # Direct conversion without rendering
@@ -566,9 +600,19 @@ def process(
             click.echo(f"{"Total Words":20} : {stats.get('total_words', 0):,}")
             click.echo(f"{"Total Lines":20} : {stats.get('total_lines', 0):,}")
             click.echo("─" * 60)
+        
+        except Exception as e:
+            click.echo(f"Error processing {pdf_path.name}: {e}", err=True)
+            if len(pdf_files) == 1:
+                # If single file, exit with error
+                ctx.exit(1)
+            else:
+                # If multiple files, continue with next file
+                continue
     
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
+    # Summary for multiple files
+    if len(pdf_files) > 1:
+        click.echo(f"\nProcessed {len(pdf_files)} PDF files successfully")
 
 
 @cli.command()
