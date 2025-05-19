@@ -1,6 +1,6 @@
-# Semantic Pipeline Implementation Guide
+# Implementation Guide
 
-This guide provides comprehensive instructions for implementing, extending, and customizing the semantic pipeline in Memory Graph Extract. It consolidates implementation details, best practices, and development roadmaps from across the project documentation.
+This guide provides instructions for implementing, extending, and customizing Memory Graph Extract. It focuses on practical information for working with the codebase.
 
 ## Table of Contents
 
@@ -10,11 +10,8 @@ This guide provides comprehensive instructions for implementing, extending, and 
 - [Extending Memory Graph Capabilities](#extending-memory-graph-capabilities)
 - [Implementation Best Practices](#implementation-best-practices)
 - [Edge Scoring System](#edge-scoring-system)
-- [Testing and Validation](#testing-and-validation)
-- [Implementation Roadmap](#implementation-roadmap)
-- [Performance Optimization](#performance-optimization)
-- [Integration Points](#integration-points)
-- [Error Handling Guidelines](#error-handling-guidelines)
+- [Current Limitations](#current-limitations)
+- [Next Development Steps](#next-development-steps)
 
 ## Core Architecture
 
@@ -923,199 +920,79 @@ def test_end_to_end_processing():
     print("✓ End-to-end processing produces expected structure")
 ```
 
-## Implementation Roadmap
+## Current Limitations
 
-### Phase 1: Core Pipeline Architecture
+While Memory Graph Extract offers valuable functionality for semantic document processing, it's important to be aware of its current limitations:
 
-1. **Structure Discovery Components**
-   - Implement native PDF TOC extraction
-   - Create markitdown fallback
-   - Build hierarchical structure detection
+### 1. Document Types and Formats
 
-2. **Initial Content Analysis**
-   - Implement word stem extraction
-   - Create Bayesian analysis module
-   - Build relationship detection
+- **PDF Focus**: Currently optimized primarily for PDF documents
+- **Text-Heavy Documents**: Works best with text-focused rather than primarily visual documents
+- **Simple Structures**: Complex nested documents may not be analyzed perfectly
 
-3. **Graph Building Infrastructure**
-   - Add ontological tagging system
-   - Implement edge scoring
-   - Create typed relationships
+### 2. Processing Capabilities
 
-### Phase 2: LLM Integration & Enhancement
+- **Document Size**: Very large documents may require significant processing time
+- **Memory Usage**: Processing large PDFs can be memory-intensive
+- **Language Support**: Currently optimized for English content
 
-1. **Semantic Enhancement Layer**
-   - Create context preparation
-   - Implement multimodal processing
-   - Build summarization functionality
+### 3. AI Backend Considerations
 
-2. **LLM Backend Implementations**
-   - Implement OpenAI multimodal
-   - Add Ollama backend
-   - Create generic HTTP endpoint
+- **Model Quality Impact**: Understanding quality varies based on the model used
+- **OpenAI Dependency**: Best results currently require OpenAI's API (external dependency)
+- **Local Performance**: Local models like LLaVA via Ollama require good GPU hardware
 
-### Phase 3: Pipeline Orchestration
+### 4. Graph Construction
 
-1. **Semantic Orchestrator**
-   - Implement pipeline coordination
-   - Add page-by-page processing
-   - Build error recovery
+- **Simple Relationships**: Currently focuses on basic relationship types
+- **Limited Inference**: Doesn't automatically infer complex relationships between concepts
+- **Cross-Document Links**: Cross-document connections are limited in the current version
 
-2. **Edge Scoring System**
-   - Implement recency factor
-   - Create semantic multiplier
-   - Add priority system
+## Next Development Steps
 
-### Phase 4: Performance & Scalability
+Future development will focus on practical improvements that address current limitations:
 
-1. **Parallelization**
-   - Implement queue-based processing
-   - Add thread pools
-   - Create resource monitoring
+### Near-Term Improvements
 
-2. **Optimization**
-   - Implement caching
-   - Add batch processing
-   - Create selective enhancement
+1. **Enhanced Document Support**
+   - Better handling of image-heavy documents
+   - Improved table and diagram extraction
+   - Support for more input formats
 
-### Phase 5: Testing & Quality
+2. **Performance Optimizations**
+   - Incremental processing for large documents
+   - Memory usage improvements
+   - Optional processing modes for limited hardware
 
-1. **Test Framework**
-   - Create mock backends
-   - Build test corpus
-   - Implement pipeline tests
+3. **User Experience**
+   - Better progress reporting
+   - More detailed logging
+   - Improved error messages and recovery
 
-2. **Quality Metrics**
-   - Add confidence validation
-   - Create relationship checks
-   - Build consistency validation
+### Medium-Term Goals
 
-## Performance Optimization
+1. **Relationship Enhancement**
+   - More sophisticated relationship detection
+   - Better confidence scoring for edges
+   - Improved ontological classification
 
-### Parallel Processing Strategies
+2. **Integration Improvements**
+   - Better compatibility with memory-graph ecosystem
+   - Simplified setup process
+   - Export to more visualization formats
 
-1. **Page-Level Parallelism**
-   - Process multiple pages concurrently
-   - Use thread pools for I/O-bound operations
-   - Maintain ordered results
+3. **Local Model Support**
+   - Optimizations for local LLM backends
+   - Better handling of context limitations
+   - Fallback mechanisms for limited hardware
 
-2. **Batch Processing**
-   - Group similar operations
-   - Batch LLM requests when possible
-   - Optimize resource usage
+### Contributing Areas
 
-### Memory Management
+If you're interested in contributing to Memory Graph Extract, these areas would be particularly valuable:
 
-1. **Streaming Processing**
-   - Process documents in chunks
-   - Avoid loading entire documents into memory
-   - Use generators for large document traversal
+1. **Testing and Validation**: Creating test cases with different document types
+2. **Documentation**: Improving examples and explanations
+3. **Performance**: Identifying and addressing bottlenecks
+4. **Integration**: Enhancing compatibility with related tools
 
-2. **Graph Pruning**
-   - Implement edge thresholding
-   - Remove low-confidence connections
-   - Merge similar nodes
-
-## Integration Points
-
-### Memory Graph MCP Server
-
-The semantic pipeline produces graphs directly compatible with the memory-graph MCP server:
-
-1. **Database Format**
-   - SQLite with compatible schema
-   - Proper domain configuration
-   - Required indexes and metadata
-
-2. **API Integration**
-   - MCP-compatible queries
-   - Efficient graph traversal
-   - Cross-domain connections
-
-### Export Formats
-
-Support various export formats for integration with other systems:
-
-1. **JSON Graph**
-   - Nodes with ontological tags
-   - Weighted edges with typed relationships
-   - Complete metadata
-
-2. **SQLite Database**
-   - Full-text search capabilities
-   - Efficient query support
-   - Metadata preservation
-
-3. **Visualization Formats** (Planned)
-   - D3.js compatible format
-   - Cytoscape.js export
-   - Graph visualization tools
-
-## Error Handling Guidelines
-
-### Graceful Degradation
-
-Design the pipeline to continue processing even with partial failures:
-
-1. **TOC Extraction Failure**
-   - Fallback to content-based structure
-   - Create minimal TOC if needed
-   - Continue with available structure
-
-2. **LLM Processing Errors**
-   - Retry with exponential backoff
-   - Fallback to basic extraction
-   - Skip problem pages with warnings
-
-3. **Graph Building Issues**
-   - Maintain partial graph
-   - Log problematic connections
-   - Create minimal viable output
-
-### Comprehensive Logging
-
-Implement detailed logging for troubleshooting:
-
-```python
-# pdf_manipulator/utils/logging_config.py
-
-import logging
-import os
-from datetime import datetime
-
-def configure_logging(log_level: str = "INFO", log_file: str = None):
-    """Configure logging for the semantic pipeline."""
-    
-    # Set up log level
-    numeric_level = getattr(logging, log_level.upper(), None)
-    if not isinstance(numeric_level, int):
-        raise ValueError(f"Invalid log level: {log_level}")
-    
-    # Create logger
-    logger = logging.getLogger("semantic_pipeline")
-    logger.setLevel(numeric_level)
-    logger.handlers = []  # Clear existing handlers
-    
-    # Create formatter
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(numeric_level)
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    
-    # File handler if specified
-    if log_file:
-        os.makedirs(os.path.dirname(log_file), exist_ok=True)
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setLevel(numeric_level)
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-    
-    return logger
-```
-
-By following this comprehensive implementation guide, developers can effectively extend and customize the semantic pipeline to meet specific requirements while maintaining compatibility with the memory-graph ecosystem.
+Memory Graph Extract is a work in progress, and contributions that help address these limitations are welcome!

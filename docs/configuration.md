@@ -1,14 +1,14 @@
 # Configuration Guide
 
-The Document AI Toolkit uses a flexible configuration system based on YAML files. This guide explains how to configure the toolkit to suit your specific needs.
+Memory Graph Extract uses a flexible configuration system based on YAML files. This guide explains how to configure the tool to suit your specific needs.
 
 ## Configuration Files
 
-The toolkit searches for configuration files in the following order (highest priority first):
+Memory Graph Extract searches for configuration files in the following order (highest priority first):
 
 1. Custom path specified with `--config` option
-2. Project-specific config: `./.pdf_manipulator/config.yaml`
-3. User-specific config: `~/.config/pdf_manipulator/config.yaml`
+2. Project-specific config: `./.mge/config.yaml`
+3. User-specific config: `~/.config/mge/config.yaml`
 4. System default config (built-in)
 
 If no configuration file is found, a default one will be created in the user's config directory.
@@ -19,16 +19,16 @@ You can manage configuration files using the `config` command:
 
 ```bash
 # List available configuration files
-docaitool config --list
+mge config --list
 
 # Create/update user configuration
-docaitool config --user
+mge config --user
 
 # Create/update project-specific configuration
-docaitool config --project
+mge config --project
 
 # Open configuration in default editor
-docaitool config --editor
+mge config --editor
 ```
 
 ## Configuration Structure

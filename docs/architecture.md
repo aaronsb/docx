@@ -1,10 +1,22 @@
-# DocX Semantic Architecture
+# Memory Graph Extract Architecture
 
-This document outlines the architecture of DocX, focusing on its core purpose: transforming PDF documents into semantic knowledge graphs for intelligent understanding.
+This document outlines the architecture of Memory Graph Extract, focusing on its core purpose: transforming PDF documents into semantic knowledge graphs for intelligent understanding.
+
+## Architectural Evolution
+
+Memory Graph Extract has evolved from a document processing tool to a semantic knowledge graph builder. This evolution prioritizes semantic understanding and makes the memory graph central to the system's operation.
+
+### Core Principles
+
+1. **Semantic Focus**: Understanding document meaning, not just extracting text
+2. **Memory Graph Centrality**: Knowledge graphs as the primary output
+3. **Separation of Concerns**: Clear boundaries between processing stages
+4. **Single Responsibility**: Each component focuses on one aspect of processing
+5. **Code Quality**: Maintainable, modular implementation
 
 ## Core Vision
 
-DocX is designed as a semantic understanding engine that creates queryable knowledge graphs from PDF documents. Instead of just extracting text, it builds a semantic network capturing:
+Memory Graph Extract is designed as a semantic understanding engine that creates queryable knowledge graphs from PDF documents. Instead of just extracting text, it builds a semantic network capturing:
 
 - Document structure and hierarchies
 - Relationships between content elements
@@ -13,59 +25,46 @@ DocX is designed as a semantic understanding engine that creates queryable knowl
 
 ## Architecture Overview
 
-```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│   Document      │────▶│    Semantic      │────▶│   Knowledge     │
-│   Input         │     │    Processor     │     │   Graph         │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
-        │                       │                        │
-        │                       ▼                        │
-        │               ┌──────────────────┐            │
-        │               │   Intelligence   │            │
-        │               │   Backends       │            │
-        │               └──────────────────┘            │
-        │                       │                        ▼
-        │                       ▼                ┌─────────────────┐
-        │               ┌──────────────────┐     │  Memory Graph   │
-        └──────────────▶│  TOC Analyzer    │────▶│  Database       │
-                        └──────────────────┘     └─────────────────┘
+```mermaid
+graph TD
+    A[Document Input] --> B[Semantic Processor]
+    B --> C[Knowledge Graph]
+    A --> D[TOC Analyzer]
+    D --> E[Memory Graph Database]
+    C --> E
+    B --> F[Intelligence Backends]
+    F --> B
+    
+    style A fill:#f9d5e5,stroke:#333,stroke-width:1px,color:#333
+    style B fill:#d0e6fa,stroke:#333,stroke-width:1px,color:#333
+    style C fill:#d3f8e2,stroke:#333,stroke-width:1px,color:#333
+    style E fill:#e3c9c9,stroke:#333,stroke-width:1px,color:#333
 ```
 
-## Component Hierarchy
+## Component Structure
 
-### 1. Semantic Processing Layer (Primary)
+### 1. Semantic Processing Layer
+
 The core of the system, focused on understanding and graph construction:
 
-- **MemoryProcessor**: Orchestrates semantic extraction and graph building
-- **MemoryAdapter**: Manages knowledge graph storage and relationships
-- **TOCProcessor**: Analyzes document structure for semantic understanding
-- **RelationshipEngine**: Maps connections between content elements
+- **SemanticOrchestrator**: Central coordinator for extraction pipeline
+- **GraphBuilder**: Constructs interconnected knowledge networks  
+- **StructureAnalyzer**: Detects document organization and hierarchies
+- **ContentAnalyzer**: Performs initial analysis and relationship detection
 
 ### 2. Intelligence Layer
+
 AI backends that enhance semantic understanding:
 
 - **IntelligenceBackend** (base)
-  - MarkitdownBackend: Direct semantic extraction
-  - OllamaBackend: AI-enhanced understanding
-  - LlamaCppBackend: Local model integration
-  - MemoryEnhancedBackend: Context-aware processing
+  - **MarkitdownBackend**: Direct semantic extraction
+  - **OllamaBackend**: AI-enhanced understanding with multimodal support
+  - **OpenAIBackend**: Cloud-based semantic processing
+  - **MemoryEnhancedBackend**: Context-aware processing
 
-### 3. Content Extraction Layer
-Tools for pulling content from documents:
+### 3. Memory Graph Layer
 
-- **PDFDocument**: Core PDF handling
-- **ImageRenderer**: Converts pages when needed
-- **OCRProcessor**: Fallback text extraction
-
-### 4. Pipeline Layer
-Orchestration and coordination:
-
-- **DocumentProcessor**: Manages the semantic extraction pipeline
-- **ProcessingProgress**: Tracks pipeline execution
-
-## Semantic Graph Structure
-
-The knowledge graph captures multiple relationship types:
+Graph database operations and structures:
 
 ```
 Document (root)
@@ -83,93 +82,74 @@ Document (root)
 
 ## Processing Pipeline
 
-### 1. Direct Semantic Extraction (Primary Path)
-```
-PDF → Markitdown → Semantic Analysis → Knowledge Graph
-```
+### 1. Structure Discovery
+- Extract existing TOC or construct from content
+- Establish document hierarchy
 
-### 2. Enhanced AI Processing (When Needed)
-```
-PDF → Render → AI Analysis → Semantic Extraction → Knowledge Graph
-         ↓
-       OCR (fallback)
-```
+### 2. Initial Analysis
+- Word stem extraction
+- Bayesian term analysis
+- Basic relationship mapping
 
-### 3. Memory-Enhanced Processing
-```
-Existing Graph → Context → AI Processing → Enhanced Graph
-```
+### 3. Semantic Enhancement
+- LLM-based understanding
+- Context-aware page processing
+- Graph enrichment with confidence-scored edges
 
-## Command Structure
+### 4. Output Generation
+- JSON graph with ontological tagging
+- SQLite database (memory-graph format)
+- Confidence scoring throughout
+
+## Command Line Interface
 
 The CLI reflects the semantic focus:
 
 ```
-pdfx process     - Extract semantic graph from document
-pdfx memory      - Interact with knowledge graphs
-  ├── search     - Semantic search across graphs
-  ├── info       - Graph statistics and structure
-  ├── connect    - Link related documents
-  └── export     - Export graph data
+mge semantic process - Process with semantic understanding
+mge process          - Legacy extraction flow
+mge memory           - Interact with knowledge graphs
+  ├── search         - Semantic search across graphs
+  ├── info           - Graph statistics and structure
+  ├── connect        - Link related documents
+  └── export         - Export graph data
 
-pdfx render      - Utility for image generation
-pdfx ocr         - Utility for text extraction
+mge render           - Utility for image generation
+mge ocr              - Utility for text extraction
 ```
 
-## Configuration Philosophy
+## Configuration Approach
 
 Configuration emphasizes semantic understanding:
 
 ```yaml
-memory:
-  enabled: true          # Semantic graph is primary output
-  domain:
-    name: "knowledge"    # Organize by knowledge domains
-  extraction:
-    relationships: true  # Detect connections
-    summaries: true     # Generate semantic summaries
-    
-intelligence:
-  default_backend: "memory_enhanced"  # Use context-aware processing
-  use_context: true                  # Leverage existing knowledge
+# Semantic pipeline configuration
+llm_backend:
+  type: "openai"      # Options: openai, ollama, http
+  
+pipeline:
+  enable_llm: true    # Use LLM for understanding
+  parallel_pages: 4   # Process multiple pages at once
+  
+graph_construction:
+  ontology_domains:   # Domain-specific tagging
+    technical: ["algorithm", "system"]
+    academic: ["theory", "methodology"]
 ```
-
-## Future Directions
-
-1. **Advanced Relationship Detection**
-   - Concept extraction and linking
-   - Citation and reference mapping
-   - Temporal relationship understanding
-
-2. **Cross-Document Intelligence**
-   - Automatic document clustering
-   - Knowledge domain discovery
-   - Contradiction detection
-
-3. **Semantic Query Engine**
-   - Natural language graph queries
-   - Path-based reasoning
-   - Knowledge synthesis
-
-4. **Graph Visualization**
-   - Interactive knowledge maps
-   - Relationship exploration tools
-   - Semantic clustering views
 
 ## Integration Points
 
 The system is designed to integrate with:
 
 1. **Memory Graph MCP**: Direct database compatibility
-2. **Claude Desktop**: Knowledge-enhanced AI assistance
-3. **External Knowledge Bases**: Import/export capabilities
-4. **Semantic Web Standards**: RDF/OWL export options
+2. **Memory Graph Interface**: Web-based graph visualization
+3. **Claude Desktop**: Knowledge-enhanced AI assistance
 
-## Performance Considerations
+## Future Considerations
 
-- Incremental graph building for large documents
-- Cached relationship calculations
-- Parallel processing for multi-document analysis
-- Optimized graph queries via SQLite indexes
+- Enhanced relationship detection
+- Cross-document intelligence
+- Interactive graph refinement
+- Performance optimization for large documents
 
 The architecture prioritizes semantic understanding while maintaining flexibility for different document types and processing needs.

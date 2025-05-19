@@ -1,6 +1,6 @@
-# Semantic Pipeline Quick Start Guide
+# Quick Start Guide
 
-Get up and running with semantic document extraction in minutes.
+Get up and running with Memory Graph Extract in minutes.
 
 ## Prerequisites
 
