@@ -4,10 +4,12 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
 import json
 import hashlib
+import logging
 
 from ..core.document import PDFDocument
 from ..intelligence.processor import DocumentProcessor as IntelligenceProcessor
 from .memory_adapter import MemoryAdapter, MemoryConfig
+from .toc_processor import TOCProcessor, TOCStructure, TOCEntry
 
 
 class MemoryProcessor:
@@ -16,18 +18,25 @@ class MemoryProcessor:
     def __init__(
         self,
         memory_config: MemoryConfig,
-        intelligence_processor: Optional[IntelligenceProcessor] = None
+        intelligence_processor: Optional[IntelligenceProcessor] = None,
+        use_toc_first: bool = True,
+        logger: Optional[logging.Logger] = None
     ):
         """Initialize the memory processor.
         
         Args:
             memory_config: Configuration for memory storage
             intelligence_processor: Optional AI processor for generating summaries
+            use_toc_first: Whether to use TOC as primary structure (default: True)
+            logger: Optional logger instance
         """
         self.memory_config = memory_config
         self.intelligence = intelligence_processor
         self.adapter = MemoryAdapter(memory_config)
         self.document_memories: Dict[str, str] = {}  # Track memory IDs for relationships
+        self.use_toc_first = use_toc_first
+        self.logger = logger or logging.getLogger(__name__)
+        self.toc_processor = TOCProcessor(logger=self.logger)
         
     def __enter__(self):
         """Context manager entry."""
@@ -59,7 +68,9 @@ class MemoryProcessor:
             'page_memories': {},
             'section_memories': {},
             'relationships': [],
-            'metadata': document_metadata or {}
+            'metadata': document_metadata or {},
+            'toc_structure': None,
+            'structure_method': 'pattern-based'  # Default
         }
         
         # Extract document metadata
@@ -73,6 +84,23 @@ class MemoryProcessor:
             'creation_date': pdf_info.get('CreationDate'),
             **(document_metadata or {})
         }
+        
+        # Try to detect and use TOC structure first
+        toc_structure = None
+        if self.use_toc_first:
+            self.logger.info("Attempting to detect table of contents...")
+            toc_result = self.toc_processor.detect_toc(page_content)
+            
+            if toc_result:
+                toc_pages, toc_content = toc_result
+                self.logger.info(f"TOC detected on pages: {toc_pages}")
+                
+                # Parse TOC structure
+                toc_structure = self.toc_processor.parse_toc(toc_content, toc_pages)
+                if toc_structure:
+                    results['toc_structure'] = toc_structure
+                    results['structure_method'] = 'toc-based'
+                    self.logger.info(f"Successfully parsed TOC with {len(toc_structure.entries)} entries")
         
         # Create document-level memory
         doc_content = self._create_document_summary(page_content, doc_metadata)
@@ -124,7 +152,13 @@ class MemoryProcessor:
                     )
         
         # Extract and process sections
-        sections = self._extract_sections(page_content)
+        if toc_structure:
+            # Use TOC-based structure
+            sections = self._process_toc_sections(toc_structure, page_content)
+        else:
+            # Fallback to pattern-based extraction
+            sections = self._extract_sections(page_content)
+            
         for section in sections:
             section_content = section['content']
             section_path = f"/documents/{Path(pdf_document.filename).stem}/sections/{section['id']}"
@@ -274,6 +308,79 @@ class MemoryProcessor:
         # Save last section
         if current_section and current_section['content']:
             sections.append(current_section)
+        
+        return sections
+    
+    def _process_toc_sections(
+        self, 
+        toc_structure: TOCStructure, 
+        page_content: Dict[int, str]
+    ) -> List[Dict[str, Any]]:
+        """Process sections based on TOC structure.
+        
+        Args:
+            toc_structure: Parsed TOC structure
+            page_content: Dictionary mapping page numbers to extracted text
+            
+        Returns:
+            List of section dictionaries with TOC-based structure
+        """
+        sections = []
+        flat_entries = toc_structure.get_flat_entries()
+        
+        # Create blueprint for mapping
+        blueprint = self.toc_processor.create_blueprint(toc_structure, page_content)
+        
+        # Process each TOC entry
+        for i, entry in enumerate(flat_entries):
+            # Determine content range
+            start_page = entry.page
+            
+            # Find next entry's page to determine end
+            end_page = max(page_content.keys())  # Default to last page
+            if i + 1 < len(flat_entries):
+                end_page = flat_entries[i + 1].page - 1
+            
+            # Collect content from pages
+            section_content = []
+            pages_in_section = []
+            
+            for page_num in range(start_page, end_page + 1):
+                if page_num in page_content:
+                    content = page_content[page_num]
+                    if content.strip():
+                        section_content.append(content)
+                        pages_in_section.append(page_num)
+            
+            if section_content:
+                # Create section ID using TOC entry number or title
+                section_id = entry.number.replace('.', '_') if entry.number else \
+                            hashlib.md5(entry.title.encode()).hexdigest()[:8]
+                
+                sections.append({
+                    'id': section_id,
+                    'title': entry.title,
+                    'level': entry.level,
+                    'content': '\n\n'.join(section_content),
+                    'pages': pages_in_section,
+                    'toc_entry': entry,  # Keep reference to TOC entry
+                    'path': entry.get_full_path()
+                })
+                
+                self.logger.debug(f"Processed TOC section: {entry.title} (pages {start_page}-{end_page})")
+        
+        # Handle orphan pages not in TOC
+        orphan_pages = blueprint.get('orphan_pages', [])
+        if orphan_pages:
+            self.logger.info(f"Found {len(orphan_pages)} orphan pages not in TOC")
+            
+            # Try pattern-based extraction for orphan pages
+            orphan_content = {page: page_content[page] for page in orphan_pages 
+                            if page in page_content}
+            
+            if orphan_content:
+                orphan_sections = self._extract_sections(orphan_content)
+                sections.extend(orphan_sections)
         
         return sections
     
