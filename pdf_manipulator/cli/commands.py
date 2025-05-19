@@ -443,55 +443,65 @@ def process(
                     
                     if verbose:
                         click.echo(f"Using AI backend: {backend}")
+                        click.echo(f"Direct flag: {direct}")
                     
                     # Check if we should use direct conversion with markitdown
                     if direct is None and backend == "markitdown":
                         direct = True  # Default to direct conversion for markitdown
                     elif direct is None:
                         direct = False  # Default to rendering for other backends
+                    
+                    if direct and backend == "markitdown":
+                        # Direct conversion without rendering
+                        click.echo(f"Processing document: {pdf_path} (direct conversion)")
+                        
+                        # Use the markitdown backend directly
+                        from pdf_manipulator.intelligence.markitdown import MarkitdownBackend
+                        markitdown_backend = processor.intelligence if isinstance(processor.intelligence, MarkitdownBackend) else MarkitdownBackend()
+                        
+                        # Process the document directly
+                        toc = markitdown_backend.process_direct_document(
+                            document_path=pdf_path,
+                            output_dir=doc_dir / "markdown",
+                            base_filename=base_filename,
+                            show_progress=progress,
+                        )
+                        
+                        # Add output directory info
+                        toc["output_directory"] = str(doc_dir)
+                        
+                        # Handle memory storage if enabled
+                        if memory and memory_config:
+                            click.echo("Memory storage is not yet supported for direct conversion")
+                        
+                        # Direct conversion completed - skip to display results
+                        display_direct_results = True
+                    else:
+                        # Standard processing with rendering
+                        display_direct_results = False
+                        intelligence_proc = processor
+                        document_processor = CoreDocumentProcessor(
+                            output_dir=output_dir,
+                            renderer_kwargs=renderer_kwargs,
+                            ocr_processor=ocr_processor,
+                            ai_transcriber=processor,
+                            memory_config=memory_config,
+                            intelligence_processor=processor if memory_config else None,
+                        )
                 
-                if direct and backend == "markitdown":
-                    # Direct conversion without rendering
-                    click.echo(f"Processing document: {pdf_path} (direct conversion)")
-                    
-                    # Use the markitdown backend directly
-                    from pdf_manipulator.intelligence.markitdown import MarkitdownBackend
-                    markitdown_backend = processor.intelligence if isinstance(processor.intelligence, MarkitdownBackend) else MarkitdownBackend()
-                    
-                    # Process the document directly
-                    toc = markitdown_backend.process_direct_document(
-                        document_path=pdf_path,
-                        output_dir=doc_dir / "markdown",
-                        base_filename=base_filename,
-                        show_progress=progress,
-                    )
-                    
-                    # Add output directory info
-                    toc["output_directory"] = str(doc_dir)
-                    
-                    # Handle memory storage if enabled
-                    if memory and memory_config:
-                        click.echo("Memory storage is not yet supported for direct conversion")
-                    
-                    # Direct conversion completed - skip to display results
-                    display_direct_results = True
-                else:
-                    # Standard processing with rendering
-                    display_direct_results = False
-                    intelligence_proc = processor
+                except Exception as e:
+                    click.echo(f"Warning: Could not initialize AI backend: {e}")
+                    click.echo("Falling back to OCR only")
+                    use_ai = False
                     document_processor = CoreDocumentProcessor(
                         output_dir=output_dir,
                         renderer_kwargs=renderer_kwargs,
                         ocr_processor=ocr_processor,
-                        ai_transcriber=processor,
                         memory_config=memory_config,
-                        intelligence_processor=processor if memory_config else None,
+                        intelligence_processor=intelligence_proc,
                     )
-            
-            except Exception as e:
-                click.echo(f"Warning: Could not initialize AI backend: {e}")
-                click.echo("Falling back to OCR only")
-                use_ai = False
+            else:
+                # OCR only processor
                 document_processor = CoreDocumentProcessor(
                     output_dir=output_dir,
                     renderer_kwargs=renderer_kwargs,
@@ -499,108 +509,99 @@ def process(
                     memory_config=memory_config,
                     intelligence_processor=intelligence_proc,
                 )
-        else:
-            # OCR only processor
-            document_processor = CoreDocumentProcessor(
-                output_dir=output_dir,
-                renderer_kwargs=renderer_kwargs,
-                ocr_processor=ocr_processor,
-                memory_config=memory_config,
-                intelligence_processor=intelligence_proc,
-            )
-        
-        # Process the document (if not already done via direct conversion)
-        if 'display_direct_results' not in locals() or not display_direct_results:
-            if not (direct and backend == "markitdown"):
-                click.echo(f"Processing document: {pdf_path}")
-            if memory:
-                click.echo("Memory storage enabled")
-            toc = document_processor.process_pdf(
-                pdf_path=pdf_path,
-                use_ai=use_ai,
-                page_range=page_range,
-                store_in_memory=memory,
-                show_progress=progress,
-            )
-        
-        # Display results
-        if 'pdf_path' not in locals() or not isinstance(pdf_path, Path):
-            pdf_path = Path(pdf_path)
-        base_filename = pdf_path.stem
-        doc_dir = output_dir / base_filename
-        
-        # Display success message and output locations
-        click.echo(f"\nDocument processed successfully!")
-        
-        # Check if we used direct conversion or standard processing
-        if 'display_direct_results' in locals() and display_direct_results:
-            # Direct conversion results
-            click.echo(f"- Markdown: {doc_dir}/markdown/")
-            if toc.get("output_files", {}).get("markdown"):
-                click.echo(f"  Main file: {toc['output_files']['markdown']}")
-        else:
-            # Standard processing results
-            click.echo(f"- Images: {doc_dir}/images/")
-            click.echo(f"- Markdown: {doc_dir}/markdown/")
-        
-        click.echo(f"- TOC: {doc_dir}/{base_filename}_contents.json")
-        
-        # Display memory storage information if enabled
-        if memory and "memory_storage" in toc and toc["memory_storage"].get("enabled"):
-            memory_info = toc["memory_storage"]
-            click.echo(f"- Memory DB: {memory_info.get('database_path')}")
-            click.echo(f"  Document ID: {memory_info.get('document_id')}")
-            click.echo(f"  Pages stored: {len(memory_info.get('page_memories', {}))}")
-            click.echo(f"  Sections found: {len(memory_info.get('section_memories', {}))}")
-        
-        # Display performance summary (if available for standard processing)
-        if "performance" in toc and "stats" in toc:
-            perf = toc["performance"]
-            stats = toc["stats"]
             
-            # Create a performance table
-            click.echo("\nPerformance Summary:")
-            click.echo("─" * 60)
-            click.echo(f"{"Document":20} : {pdf_path.name}")
-            click.echo(f"{"Pages Processed":20} : {stats.get('processed_pages', 0)} of {stats.get('total_pages', 0)}")
+            # Process the document (if not already done via direct conversion)
+            if 'display_direct_results' not in locals() or not display_direct_results:
+                if not (direct and backend == "markitdown"):
+                    click.echo(f"Processing document: {pdf_path}")
+                if memory:
+                    click.echo("Memory storage enabled")
+                toc = document_processor.process_pdf(
+                    pdf_path=pdf_path,
+                    use_ai=use_ai,
+                    page_range=page_range,
+                    store_in_memory=memory,
+                    show_progress=progress,
+                )
             
-            if use_ai and backend:
-                click.echo(f"{"AI Backend":20} : {backend.upper()}")
-                click.echo(f"{"Model":20} : {model or 'Default'}")
+            # Display results
+            if 'pdf_path' not in locals() or not isinstance(pdf_path, Path):
+                pdf_path = Path(pdf_path)
+            base_filename = pdf_path.stem
+            doc_dir = output_dir / base_filename
+            
+            # Display success message and output locations
+            click.echo(f"\nDocument processed successfully!")
+            
+            # Check if we used direct conversion or standard processing
+            if 'display_direct_results' in locals() and display_direct_results:
+                # Direct conversion results
+                click.echo(f"- Markdown: {doc_dir}/markdown/")
+                if toc.get("output_files", {}).get("markdown"):
+                    click.echo(f"  Main file: {toc['output_files']['markdown']}")
             else:
-                click.echo(f"{"Method":20} : {stats.get('transcription_method', 'unknown').upper()}")
+                # Standard processing results
+                click.echo(f"- Images: {doc_dir}/images/")
+                click.echo(f"- Markdown: {doc_dir}/markdown/")
             
-            click.echo(f"{"Total Time":20} : {perf.get('total_duration_formatted', 'N/A')}")
-            click.echo("─" * 60)
+            click.echo(f"- TOC: {doc_dir}/{base_filename}_contents.json")
             
-            # Display timing for each step
-            click.echo("Processing Steps:")
-            steps_formatted = perf.get("steps_formatted", {})
-            if steps_formatted:
-                for step, duration in steps_formatted.items():
-                    step_name = step.replace("_", " ").title()
-                    click.echo(f"  - {step_name:18} : {duration}")
+            # Display memory storage information if enabled
+            if memory and "memory_storage" in toc and toc["memory_storage"].get("enabled"):
+                memory_info = toc["memory_storage"]
+                click.echo(f"- Memory DB: {memory_info.get('database_path')}")
+                click.echo(f"  Document ID: {memory_info.get('document_id')}")
+                click.echo(f"  Pages stored: {len(memory_info.get('page_memories', {}))}")
+                click.echo(f"  Sections found: {len(memory_info.get('section_memories', {}))}")
             
-            # Display per-page timing
-            click.echo("─" * 60)
-            if "avg_render_time_per_page_formatted" in perf and "avg_transcription_time_per_page_formatted" in perf:
-                click.echo(f"{"Avg. Render Time":20} : {perf['avg_render_time_per_page_formatted']} per page")
-                click.echo(f"{"Avg. Transcription":20} : {perf['avg_transcription_time_per_page_formatted']} per page")
-            click.echo("─" * 60)
-        
-        # Display content statistics for direct conversion
-        elif "content_stats" in toc:
-            stats = toc["content_stats"]
-            click.echo("\nContent Statistics:")
-            click.echo("─" * 60)
-            click.echo(f"{"Document":20} : {pdf_path.name}")
-            click.echo(f"{"Backend":20} : {backend.upper()}")
-            click.echo(f"{"Conversion Mode":20} : Direct (markitdown)")
-            click.echo(f"{"Total Characters":20} : {stats.get('total_characters', 0):,}")
-            click.echo(f"{"Total Words":20} : {stats.get('total_words', 0):,}")
-            click.echo(f"{"Total Lines":20} : {stats.get('total_lines', 0):,}")
-            click.echo("─" * 60)
-        
+            # Display performance summary (if available for standard processing)
+            if "performance" in toc and "stats" in toc:
+                perf = toc["performance"]
+                stats = toc["stats"]
+                
+                # Create a performance table
+                click.echo("\nPerformance Summary:")
+                click.echo("─" * 60)
+                click.echo(f"{"Document":20} : {pdf_path.name}")
+                click.echo(f"{"Pages Processed":20} : {stats.get('processed_pages', 0)} of {stats.get('total_pages', 0)}")
+                
+                if use_ai and backend:
+                    click.echo(f"{"AI Backend":20} : {backend.upper()}")
+                    click.echo(f"{"Model":20} : {model or 'Default'}")
+                else:
+                    click.echo(f"{"Method":20} : {stats.get('transcription_method', 'unknown').upper()}")
+                
+                click.echo(f"{"Total Time":20} : {perf.get('total_duration_formatted', 'N/A')}")
+                click.echo("─" * 60)
+                
+                # Display timing for each step
+                click.echo("Processing Steps:")
+                steps_formatted = perf.get("steps_formatted", {})
+                if steps_formatted:
+                    for step, duration in steps_formatted.items():
+                        step_name = step.replace("_", " ").title()
+                        click.echo(f"  - {step_name:18} : {duration}")
+                
+                # Display per-page timing
+                click.echo("─" * 60)
+                if "avg_render_time_per_page_formatted" in perf and "avg_transcription_time_per_page_formatted" in perf:
+                    click.echo(f"{"Avg. Render Time":20} : {perf['avg_render_time_per_page_formatted']} per page")
+                    click.echo(f"{"Avg. Transcription":20} : {perf['avg_transcription_time_per_page_formatted']} per page")
+                click.echo("─" * 60)
+            
+            # Display content statistics for direct conversion
+            elif "content_stats" in toc:
+                stats = toc["content_stats"]
+                click.echo("\nContent Statistics:")
+                click.echo("─" * 60)
+                click.echo(f"{"Document":20} : {pdf_path.name}")
+                click.echo(f"{"Backend":20} : {backend.upper()}")
+                click.echo(f"{"Conversion Mode":20} : Direct (markitdown)")
+                click.echo(f"{"Total Characters":20} : {stats.get('total_characters', 0):,}")
+                click.echo(f"{"Total Words":20} : {stats.get('total_words', 0):,}")
+                click.echo(f"{"Total Lines":20} : {stats.get('total_lines', 0):,}")
+                click.echo("─" * 60)
+            
         except Exception as e:
             click.echo(f"Error processing {pdf_path.name}: {e}", err=True)
             if len(pdf_files) == 1:
