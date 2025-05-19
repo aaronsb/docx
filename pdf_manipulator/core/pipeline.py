@@ -11,6 +11,7 @@ from pdf_manipulator.renderers.image_renderer import ImageRenderer
 from pdf_manipulator.core.exceptions import PDFManipulatorError
 from pdf_manipulator.memory.memory_processor import MemoryProcessor
 from pdf_manipulator.memory.memory_adapter import MemoryConfig
+from pdf_manipulator.utils.progress import ProcessingProgress
 
 
 class PerformanceTimer:
@@ -187,6 +188,7 @@ class DocumentProcessor:
         use_ai: bool = True,
         page_range: Optional[List[int]] = None,
         store_in_memory: bool = False,
+        show_progress: bool = True,
     ) -> Dict[str, Any]:
         """Process a PDF document through the complete pipeline.
         
@@ -206,6 +208,13 @@ class DocumentProcessor:
         timer = PerformanceTimer()
         timer.start_step("initialization")
         
+        # Initialize progress tracking
+        progress = None
+        if show_progress:
+            progress = ProcessingProgress()
+            progress.start()
+            progress.start_stage("initialization")
+        
         pdf_path = Path(pdf_path)
         base_filename = pdf_path.stem
         
@@ -219,11 +228,18 @@ class DocumentProcessor:
         os.makedirs(images_dir, exist_ok=True)
         os.makedirs(markdown_dir, exist_ok=True)
         
+        if progress:
+            progress.complete_stage("initialization")
+            
         timer.end_step()
         
         try:
             # Open PDF file
             timer.start_step("pdf_loading")
+            
+            if progress:
+                progress.start_stage("pdf_loading")
+                
             with PDFDocument(pdf_path) as doc:
                 # Extract the document's native table of contents
                 native_toc = doc.get_toc()
@@ -234,6 +250,11 @@ class DocumentProcessor:
                     "total_pages": doc.page_count,
                     "processed_pages": 0,
                 }
+                
+                if progress:
+                    progress.log_message(f"Loaded PDF: {doc.page_count} pages")
+                    progress.complete_stage("pdf_loading")
+                    
                 timer.end_step()
                 
                 # Initialize renderer
@@ -248,9 +269,12 @@ class DocumentProcessor:
                 
                 stats["processed_pages"] = len(pages_to_process)
                 
+                if progress:
+                    progress.start_stage("rendering", total=len(pages_to_process))
+                
                 # Render pages to images
                 image_paths = []
-                for page_num in pages_to_process:
+                for i, page_num in enumerate(pages_to_process):
                     output_file = images_dir / f"page_{page_num:04d}.png"
                     renderer.render_page_to_png(
                         page_number=page_num,
@@ -258,10 +282,22 @@ class DocumentProcessor:
                         **self.renderer_kwargs
                     )
                     image_paths.append(output_file)
+                    
+                    if progress:
+                        progress.update_stage("rendering", advance=1)
+                        progress.update_page_status(page_num + 1)
+                        
+                if progress:
+                    progress.complete_stage("rendering")
+                    
                 timer.end_step()
                 
                 # Process images with OCR or AI
                 timer.start_step("transcription")
+                
+                if progress:
+                    progress.start_stage("transcription", total=len(image_paths))
+                    
                 if use_ai and self.ai_transcriber:
                     # Get OCR function for fallback
                     ocr_func = None
@@ -269,11 +305,19 @@ class DocumentProcessor:
                         ocr_func = self.ocr_processor.extract_text
                     
                     # Process with AI transcription
-                    toc = self.ai_transcriber.transcribe_document_pages(
-                        image_paths=image_paths,
-                        output_dir=markdown_dir,
-                        base_filename=base_filename,
-                    )
+                    if hasattr(self.ai_transcriber, 'transcribe_document_pages_with_progress'):
+                        toc = self.ai_transcriber.transcribe_document_pages_with_progress(
+                            image_paths=image_paths,
+                            output_dir=markdown_dir,
+                            base_filename=base_filename,
+                            progress=progress,
+                        )
+                    else:
+                        toc = self.ai_transcriber.transcribe_document_pages(
+                            image_paths=image_paths,
+                            output_dir=markdown_dir,
+                            base_filename=base_filename,
+                        )
                     stats["transcription_method"] = "ai"
                 
                 elif self.ocr_processor:
@@ -291,6 +335,10 @@ class DocumentProcessor:
                 
                 else:
                     raise PDFManipulatorError("No OCR or AI processor available")
+                    
+                if progress:
+                    progress.complete_stage("transcription")
+                    
                 timer.end_step()
                 
                 # Store in memory graph if enabled
@@ -345,6 +393,10 @@ class DocumentProcessor:
                 
                 # Add native document TOC to the output if available
                 timer.start_step("finalization")
+                
+                if progress:
+                    progress.start_stage("finalization")
+                    
                 if has_native_toc:
                     toc["native_toc"] = native_toc
                     toc["has_native_toc"] = True
@@ -378,6 +430,11 @@ class DocumentProcessor:
                 toc_path = doc_dir / f"{base_filename}_contents.json"
                 with open(toc_path, 'w', encoding='utf-8') as f:
                     json.dump(toc, f, indent=2)
+                    
+                if progress:
+                    progress.complete_stage("finalization")
+                    progress.stop()
+                    
                 timer.end_step()
                 
                 return toc
@@ -387,6 +444,11 @@ class DocumentProcessor:
             timer.start_step("error_handling")
             performance = timer.get_summary()
             timer.end_step()
+            
+            # Stop progress tracking on error
+            if progress:
+                progress.log_message(f"[red]Error: {e}[/red]")
+                progress.stop()
             
             # Can still try to save performance data even if processing failed
             try:

@@ -111,7 +111,7 @@ class IntelligenceManager:
         if backend_name is None:
             # Use default from config
             backend_name = self.config.get("intelligence", {}).get(
-                "default_backend", "ollama"
+                "default_backend", "markitdown"
             )
         
         # Convert name format (llama-cpp or llama_cpp to llama_cpp)
@@ -146,7 +146,11 @@ class IntelligenceManager:
         backend_config = self.config.get("intelligence", {}).get("backends", {}).get(backend_name, {})
         
         # Import the appropriate backend
-        if backend_name == "ollama":
+        if backend_name == "markitdown":
+            from pdf_manipulator.intelligence.markitdown import MarkitdownBackend
+            return MarkitdownBackend(backend_config)
+        
+        elif backend_name == "ollama":
             from pdf_manipulator.intelligence.ollama import OllamaBackend
             return OllamaBackend(backend_config)
         
@@ -169,6 +173,13 @@ class IntelligenceManager:
         """
         # Check for availability of each backend
         available = []
+        
+        # markitdown (added first as the preferred default)
+        try:
+            from pdf_manipulator.intelligence.markitdown import MarkitdownBackend
+            available.append("markitdown")
+        except ImportError:
+            pass
         
         # Ollama
         try:

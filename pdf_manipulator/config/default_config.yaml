@@ -57,11 +57,16 @@ ocr:
 # AI intelligence configuration
 intelligence:
   # Default backend to use for AI processing
-  # Available options: ollama, llama_cpp, llama_cpp_http
-  default_backend: "ollama"
+  # Available options: markitdown, ollama, llama_cpp, llama_cpp_http
+  default_backend: "markitdown"
   
   # Configuration for different intelligence backends
   backends:
+    # Markitdown backend (default - no compute requirements)
+    # Direct document-to-markdown conversion without AI
+    # Supports many formats: PDF, PowerPoint, Word, Excel, Images, etc.
+    markitdown:
+      # No configuration needed - works out of the box
     # Ollama API backend (easiest to set up)
     # Requires Ollama to be installed and running
     # See https://ollama.ai for installation instructions

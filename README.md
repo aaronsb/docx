@@ -4,13 +4,16 @@ A modular Python toolkit for PDF document processing and analysis with AI capabi
 
 ## Summary
 
-PDFX transforms PDF documents into structured, searchable content using a combination of rendering, OCR, and AI-powered transcription. Key features include:
+PDFX transforms PDF documents into structured, searchable content using direct document conversion or a combination of rendering, OCR, and AI-powered transcription. Key features include:
 
-- Rendering PDF pages to PNG images
+- **Direct document conversion** with markitdown (default) - no rendering required
+- Multiple document format support (PDF, Word, PowerPoint, Excel, and more)
+- Rendering PDF pages to PNG images (when needed)
 - OCR text extraction from document images
 - AI-powered document transcription using local models with multiple backends
 - Table of contents generation with structured metadata
 - Markdown conversion for easy content reuse
+- Progress tracking with visual status updates
 - Flexible configuration system with YAML format
 - Command-line interface with configuration management
 - **Memory graph storage**: Store extracted content in SQLite database directly compatible with [memory-graph-mcp](https://github.com/aaronsb/memory-graph)
@@ -19,6 +22,7 @@ PDFX transforms PDF documents into structured, searchable content using a combin
 ## Use Cases
 
 ### Document Processing
+- **Direct document conversion**: Fast conversion without rendering using markitdown (default)
 - **Batch PDF to Markdown conversion**: Convert entire PDF documents or directories into markdown files
 - **Intelligent content extraction**: Use AI to understand complex layouts, tables, and figures
 - **OCR fallback**: Automatically fall back to OCR when AI transcription fails
@@ -32,8 +36,11 @@ PDFX transforms PDF documents into structured, searchable content using a combin
 ### Examples
 
 ```bash
-# Convert a PDF to searchable markdown with AI
-pdfx process document.pdf output/ --model llava:latest
+# Direct conversion with markitdown (default, fastest)
+pdfx process document.pdf output/
+
+# Traditional rendering pipeline with AI
+pdfx process document.pdf output/ --backend ollama --render
 
 # Process with memory storage to build knowledge base
 pdfx process document.pdf output/ --memory
@@ -43,53 +50,43 @@ pdfx render document.pdf images/ --pages 0,1,2 --dpi 300
 
 # Extract text from scanned images
 pdfx ocr scan.png --output text.txt
+
+# Process with custom backend
+pdfx process document.pdf output/ --backend llama_cpp --model llama-7b.gguf
 ```
 
 ## Usage
 
 ### Command Line Interface
 
-The tool uses a simple, intuitive command structure:
-
-```bash
-# Simple command format: verb input [output] [options]
-pdfx render document.pdf images/        # Convert PDF to images
-pdfx ocr image.png                      # Extract text with OCR
-pdfx transcribe image.png               # Transcribe image with AI
-pdfx process document.pdf output/       # Full intelligent processing
-pdfx info document.pdf                  # Show document information
-```
+The CLI provides several commands for different operations:
 
 **Process a complete document:**
 
 ```bash
-# Process a PDF with Ollama (default)
-pdfx process document.pdf output_directory/ --model llava:latest
+# Process with default markitdown backend (fastest, no rendering)
+pdfx process document.pdf output_directory/
 
-# Process with llama.cpp HTTP server backend
-pdfx process document.pdf output_directory/ \
-  --backend llama_cpp_http \
-  --model llava
+# Process with direct conversion explicitly
+pdfx process document.pdf output_directory/ --backend markitdown --direct
 
-# Process with direct llama.cpp integration
-pdfx process document.pdf output_directory/ \
-  --backend llama_cpp \
-  --model-path /path/to/model.gguf
-
-# Process specific pages only
-pdfx process document.pdf output_directory/ --pages 0,1,2
+# Process with AI backend (renders pages first)
+pdfx process document.pdf output_directory/ --backend ollama --model llava:latest
 
 # Process with OCR only (no AI)
 pdfx process document.pdf output_directory/ --no-ai
 
+# Process specific pages
+pdfx process document.pdf output_directory/ --pages 0,5,10
+
 # Process with memory storage enabled
 pdfx process document.pdf output_directory/ --memory
 
-# Process with memory and specific AI backend
-pdfx process document.pdf output_directory/ --memory --backend ollama --model llava:latest
+# Process without progress display
+pdfx process document.pdf output_directory/ --no-progress
 ```
 
-**Render PDF pages to PNG images:**
+**Render PDF pages:**
 
 ```bash
 # Render all pages of a PDF
@@ -109,8 +106,11 @@ pdfx ocr image.png --output text.txt
 **Transcribe an image with AI:**
 
 ```bash
-# Transcribe an image using Ollama (default)
-pdfx transcribe image.png --model llava:latest --output transcription.md
+# Transcribe with markitdown (default)
+pdfx transcribe image.png --output transcription.md
+
+# Transcribe with Ollama
+pdfx transcribe image.png --backend ollama --model llava:latest --output transcription.md
 
 # Transcribe with custom prompt
 pdfx transcribe image.png --prompt "Extract tables from this image as markdown"
@@ -129,6 +129,15 @@ from pdf_manipulator.core.pipeline import DocumentProcessor
 # Load configuration
 config = load_config()
 
+# Direct document conversion with markitdown
+from pdf_manipulator.intelligence.markitdown import MarkitdownBackend
+markitdown = MarkitdownBackend()
+toc = markitdown.process_direct_document(
+    document_path="document.pdf",
+    output_dir="output/",
+    base_filename="document"
+)
+
 # Basic PDF rendering
 with PDFDocument("document.pdf") as doc:
     renderer = ImageRenderer(doc)
@@ -145,11 +154,11 @@ ocr = OCRProcessor(
 )
 text = ocr.extract_text("page0.png")
 
-# AI transcription with Ollama
+# AI transcription
 processor = create_processor(
     config=config,
     ocr_processor=ocr,
-    backend_name="ollama",
+    backend_name="markitdown",  # or "ollama", "llama_cpp", etc.
 )
 text = processor.process_image(
     "page0.png",
@@ -163,7 +172,11 @@ document_processor = DocumentProcessor(
     ocr_processor=ocr,
     ai_transcriber=processor,
 )
-toc = document_processor.process_pdf("document.pdf", use_ai=True)
+toc = document_processor.process_pdf(
+    "document.pdf", 
+    use_ai=True,
+    show_progress=True  # Show progress status updates
+)
 ```
 
 ### Output Structure
@@ -173,12 +186,13 @@ When processing a document, the toolkit creates the following structure:
 ```
 output_directory/
 └── document_name/
-    ├── images/               # Rendered page images
+    ├── images/               # Rendered page images (if rendering used)
     │   ├── page_0000.png
     │   ├── page_0001.png
     │   └── ...
     ├── markdown/             # Transcribed content
-    │   ├── page_0000.md
+    │   ├── document_name.md  # Single file for direct conversion
+    │   ├── page_0000.md      # Individual pages for rendered pipeline
     │   ├── page_0001.md
     │   └── ...
     ├── memory_graph.db       # Memory storage database (if enabled)
@@ -192,75 +206,55 @@ The contents.json file includes document structure, TOC, and metadata.
 When memory storage is enabled (`--memory` flag or configured in settings), the toolkit creates a SQLite database that is directly compatible with the [memory-graph-mcp server](https://github.com/aaronsb/memory-graph). These database files can be used with Claude Desktop and other AI tools:
 
 ```python
-# Using memory storage in Python
 from pdf_manipulator.memory.memory_adapter import MemoryConfig
 from pdf_manipulator.memory.memory_processor import MemoryProcessor
 
 # Configure memory storage
 memory_config = MemoryConfig(
     database_path="output/memory_graph.db",
-    domain_name="pdf_documents",
+    domain_name="pdf_processing",
+    domain_description="PDF document processing knowledge base",
     enable_relationships=True,
     enable_summaries=True,
 )
 
-# Process document with memory storage
-document_processor = DocumentProcessor(
-    output_dir="output/",
-    memory_config=memory_config,
-    # ... other options
-)
-
-result = document_processor.process_pdf(
-    "document.pdf",
-    store_in_memory=True,
-)
-
-# Query stored memories
-with MemoryProcessor(memory_config) as processor:
-    # Find related documents
-    similar_docs = processor.find_similar_documents("search query")
-    
-    # Get document knowledge graph
-    graph = processor.get_document_graph(document_id, max_depth=2)
+# Initialize memory processor with AI support
+with MemoryProcessor(memory_config, intelligence_processor) as mem_processor:
+    # Process document with memory storage
+    results = mem_processor.process_document(
+        pdf_document=doc,
+        page_content=page_content_dict,
+        document_metadata={
+            'filename': 'document.pdf',
+            'transcription_method': 'ai',
+        }
+    )
 ```
 
-Example memory configuration in config.yaml:
-
-```yaml
-memory:
-  enabled: true
-  database_name: "memory_graph.db"
-  domain:
-    name: "pdf_processing"
-    description: "PDF document knowledge base"
-  creation:
-    enable_relationships: true
-    enable_summaries: true
-    tags_prefix: "pdf:"
-    min_content_length: 50
-```
-
-## Architecture Overview
-
-PDFX follows a layered architecture with modular components:
-
-### Processing Pipeline
+## Architecture
 
 The document processing pipeline follows this sequence:
 
+### Direct Conversion (markitdown - default)
+1. Document → markitdown → Markdown
+2. Markdown → structure extraction → structured content
+3. (Optional) Memory storage → knowledge graph
+
+### Traditional Pipeline (AI/OCR backends)
 1. PDF document → rendering → PNG images
 2. Images → OCR/AI transcription → text 
 3. Text → structure extraction → structured content
 4. (Optional) Advanced processing → semantic understanding
+5. (Optional) Memory storage → knowledge graph
 
 ### AI Intelligence Backends
 
 Multiple backend options provide flexibility:
 
-- **Ollama API** (easiest to use)
-- **llama.cpp** direct integration (via Python bindings)
-- **llama.cpp HTTP** server (for custom optimized builds)
+- **markitdown** (default) - Direct document conversion, no GPU required
+- **Ollama API** - Easy to use with local models
+- **llama.cpp** - Direct integration via Python bindings
+- **llama.cpp HTTP** - Server for custom optimized builds
 
 ### Memory Graph Integration
 
@@ -301,10 +295,10 @@ pip install -e '.[llama]'
 ### Dependencies
 
 - **Required**: Python 3.8+
-- **Core Dependencies**: PyMuPDF, pytesseract, etc. (installed automatically)
+- **Core Dependencies**: PyMuPDF, pytesseract, markitdown, etc. (installed automatically)
 - **Optional**: `llama-cpp-python` (for direct llama.cpp integration)
 
-If you encounter build errors with `llama-cpp-python`, you can still use the toolkit with Ollama.
+If you encounter build errors with `llama-cpp-python`, you can still use the toolkit with markitdown or Ollama.
 
 ### Configuration Management
 
@@ -327,9 +321,18 @@ pdfx config --editor
 
 ## Component Setup
 
+### markitdown Setup (Default Backend)
+
+markitdown is installed automatically and requires no additional setup. It handles:
+- PDF files
+- Microsoft Office documents (Word, PowerPoint, Excel)
+- Images with text
+- HTML and text files
+- Many other formats
+
 ### Tesseract OCR Setup
 
-Required for OCR capabilities:
+Required for OCR capabilities and fallback:
 
 - **Arch Linux**: `sudo pacman -S tesseract tesseract-data-eng` (or other language packs)
 - **Ubuntu/Debian**: `sudo apt-get install -y tesseract-ocr tesseract-ocr-eng`
@@ -349,7 +352,7 @@ If you encounter Tesseract errors, they may be due to:
 
 ### AI Backend Setup
 
-#### Ollama Setup (Recommended)
+#### Ollama Setup (Recommended for AI Processing)
 
 For native installation:
 - Follow installation instructions at https://ollama.ai/
@@ -448,37 +451,87 @@ For more details on the Docker setup for Ollama, see: [ollama-docker](https://gi
   ```
 - Server typically runs on http://localhost:8080
 
-## Project Structure
+### Advanced Configuration
 
+For fine-tuning performance and behavior, modify your `config.yaml`:
+
+```yaml
+intelligence:
+  default_backend: "markitdown"  # Default backend
+  backends:
+    markitdown:
+      # No configuration needed - works out of the box
+    ollama:
+      model: "llava:latest"
+      base_url: "http://localhost:11434"
+      timeout: 120
+
+rendering:
+  dpi: 300  # Higher for better quality
+  alpha: false  # Include transparency
+  zoom: 1.0  # Scaling factor
+
+processing:
+  use_ocr_fallback: true  # Fallback to OCR if AI fails
+  default_prompt: "Transcribe all text in this document image to markdown format."
+
+memory:
+  enabled: false  # Enable memory storage by default
+  database_name: "memory_graph.db"
+  domain:
+    name: "pdf_processing"
+    description: "PDF document processing knowledge base"
+  creation:
+    enable_relationships: true
+    enable_summaries: true
+    tags_prefix: "pdf:"
+    min_content_length: 50
 ```
-pdf_manipulator/
-├── core/               # Core document handling
-│   ├── document.py     # PDF document operations
-│   ├── exceptions.py   # Error handling
-│   └── pipeline.py     # Processing pipeline
-├── renderers/          # PDF to image rendering
-│   └── image_renderer.py
-├── extractors/         # Text extraction modules
-│   ├── ocr.py          # OCR functionality
-│   └── ai_transcription.py # AI-based transcription
-├── intelligence/       # AI backends
-│   ├── base.py         # Base class for backends
-│   ├── ollama.py       # Ollama API integration
-│   ├── llama_cpp.py    # Direct llama.cpp integration
-│   ├── llama_cpp_http.py # HTTP client for llama.cpp
-│   └── memory_enhanced.py # Memory-enhanced backend
-├── memory/             # Memory graph integration
-│   ├── memory_adapter.py  # SQLite database adapter
-│   └── memory_processor.py # Document memory processing
-├── utils/              # Utility functions
-├── cli/                # Command line interface
-│   └── commands.py     # CLI commands
-└── examples/           # Example scripts
-    ├── memory_processing_example.py      # Basic memory storage example
-    ├── memory_enhanced_processing.py     # Advanced memory-enhanced processing
-    └── cli_memory_example.sh            # CLI usage examples
-```
+
+## Troubleshooting
+
+### markitdown Issues
+
+- If document conversion fails, check the file format is supported
+- For PDF-specific features, may need to install additional dependencies: `pip install "markitdown[pdf]"`
+
+### Tesseract Issues
+
+- Verify installation: `tesseract --version`
+- Check language data: `tesseract --list-langs`
+- Ensure TESSDATA_PREFIX is set correctly
+
+### AI Backend Issues
+
+- For Ollama: Check server is running: `curl http://localhost:11434/api/tags`
+- Verify model is downloaded: `ollama list`
+- For llama.cpp: Check model file path and format
+
+### Memory Issues
+
+- For large documents, consider processing in chunks with `--pages`
+- Adjust rendering DPI if running out of memory
+- Use markitdown for direct conversion without rendering
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests if available
+5. Submit a pull request
 
 ## License
 
-MIT
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- PyMuPDF for PDF rendering
+- Tesseract for OCR capabilities
+- Ollama for easy AI model deployment
+- llama.cpp for efficient model inference
+- markitdown for direct document conversion
+- memory-graph project for knowledge management inspiration

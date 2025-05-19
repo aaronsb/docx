@@ -163,6 +163,79 @@ class DocumentProcessor:
         
         except Exception as e:
             raise IntelligenceError(f"Failed to process document: {e}")
+            
+    def process_document_pages_with_progress(
+        self,
+        image_paths: List[Union[str, Path]],
+        output_dir: Union[str, Path],
+        base_filename: str,
+        progress=None,
+        custom_prompt: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Process multiple document pages with progress tracking.
+        
+        Args:
+            image_paths: List of paths to page images
+            output_dir: Directory for output files
+            base_filename: Base name for output files
+            progress: Progress tracker instance
+            custom_prompt: Custom prompt for processing
+            
+        Returns:
+            Dictionary with document structure
+            
+        Raises:
+            IntelligenceError: If processing fails
+        """
+        output_dir = Path(output_dir)
+        os.makedirs(output_dir, exist_ok=True)
+        
+        try:
+            toc = {
+                "document_name": base_filename,
+                "total_pages": len(image_paths),
+                "backend": self.intelligence.get_name(),
+                "pages": []
+            }
+            
+            # Add model info if available
+            model_info = self.intelligence.get_model_info()
+            if model_info:
+                toc["model_info"] = model_info
+            
+            # Process each page
+            for i, image_path in enumerate(image_paths):
+                image_path = Path(image_path)
+                page_num = i
+                
+                # Update progress
+                if progress:
+                    progress.update_stage("transcription", advance=1)
+                    progress.update_page_status(page_num + 1)
+                
+                # Process the image
+                text = self.process_image(image_path, custom_prompt=custom_prompt)
+                
+                # Save text to markdown file
+                md_path = output_dir / f"{image_path.stem}.md"
+                with open(md_path, 'w', encoding='utf-8') as f:
+                    f.write(f"# Page {page_num + 1}\n\n{text}")
+                
+                # Add page info to TOC
+                page_info = {
+                    "page_number": page_num + 1,
+                    "image_file": str(image_path.name),
+                    "markdown_file": str(md_path.name),
+                    "first_line": text.split('\n')[0] if text else "",
+                    "word_count": len(text.split()) if text else 0,
+                }
+                
+                toc["pages"].append(page_info)
+            
+            return toc
+        
+        except Exception as e:
+            raise IntelligenceError(f"Failed to process document: {e}")
 
 
 def create_processor(
