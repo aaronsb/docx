@@ -7,7 +7,6 @@ import click
 
 from pdf_manipulator.core.document import PDFDocument
 from pdf_manipulator.renderers.image_renderer import ImageRenderer
-from pdf_manipulator.extractors.ocr import OCRProcessor, DocumentAnalyzer
 from pdf_manipulator.intelligence.processor import create_processor
 from pdf_manipulator.intelligence.base import IntelligenceManager
 from .base import ProgressReporter, validate_file_exists, validate_directory
@@ -96,70 +95,11 @@ def render_pdf(
         sys.exit(1)
 
 
-@click.command(name='ocr')
-@click.argument('image_path', type=click.Path(exists=True), callback=validate_file_exists)
-@click.option('--lang', type=str, help='OCR language')
-@click.option('--tessdata-dir', type=click.Path(), help='Tesseract data directory')
-@click.option('--tesseract-cmd', type=click.Path(), help='Path to tesseract executable')
-@click.option('--output', type=click.Path(), help='Output file (default: print to console)')
-@click.pass_context
-def ocr_image(
-    ctx,
-    image_path: str,
-    lang: Optional[str],
-    tessdata_dir: Optional[str],
-    tesseract_cmd: Optional[str],
-    output: Optional[str]
-):
-    """Extract text from an image using OCR."""
-    config = ctx.obj['config']
-    verbose = ctx.obj.get('verbose', False)
-    reporter = ProgressReporter(verbose)
-    
-    # Get OCR settings from config with command-line overrides
-    ocr_config = config.get('ocr', {})
-    lang = lang or ocr_config.get('language', 'eng')
-    tessdata_dir = tessdata_dir or ocr_config.get('tessdata_dir')
-    tesseract_cmd = tesseract_cmd or ocr_config.get('tesseract_cmd')
-    
-    try:
-        reporter.start(f"Extracting text from {image_path}")
-        
-        # Create OCR processor
-        ocr_processor = OCRProcessor(
-            language=lang,
-            tessdata_dir=tessdata_dir,
-            tesseract_cmd=tesseract_cmd
-        )
-        
-        # Extract text
-        text = ocr_processor.extract_text(image_path)
-        
-        if output:
-            # Write to file
-            Path(output).parent.mkdir(parents=True, exist_ok=True)
-            with open(output, 'w', encoding='utf-8') as f:
-                f.write(text)
-            reporter.complete(f"Extracted text saved to {output}")
-        else:
-            # Print to console
-            click.echo("\nExtracted text:")
-            click.echo("-" * 40)
-            click.echo(text)
-            click.echo("-" * 40)
-            reporter.complete("Text extraction complete")
-    
-    except Exception as e:
-        reporter.error(str(e))
-        if verbose:
-            import traceback
-            traceback.print_exc()
-        sys.exit(1)
 
 
 @click.command(name='transcribe')
 @click.argument('image_path', type=click.Path(exists=True), callback=validate_file_exists)
-@click.option('--backend', help='AI backend to use (markitdown, ollama, llama_cpp, llama_cpp_http)')
+@click.option('--backend', help='AI backend to use (markitdown, ollama, openai)')
 @click.option('--model', help='Model name')
 @click.option('--output', type=click.Path(), help='Output file (default: print to console)')
 @click.option('--prompt', help='Custom prompt for AI processing')
@@ -193,8 +133,7 @@ def transcribe_image(
         # Create AI processor
         ai_processor = create_processor(
             config=config,
-            backend_name=backend,
-            model_name=model
+            backend_name=backend
         )
         
         # Process image
@@ -263,16 +202,14 @@ def pdf_info(ctx, pdf_path: str, show_toc: bool):
             
             # Document statistics
             if verbose:
-                analyzer = DocumentAnalyzer()
                 click.echo("\nDocument Analysis:")
                 for page_num in range(min(5, doc.page_count)):  # Sample first 5 pages
                     page = doc.get_page(page_num)
                     text = page.get_text()
-                    if text:
-                        stats = analyzer.analyze_text(text)
-                        if page_num == 0:
-                            click.echo(f"  Language: {stats.get('language', 'unknown')}")
-                            click.echo(f"  Average words per page: ~{stats.get('word_count', 0)}")
+                    if text and page_num == 0:
+                        # Simple word count
+                        word_count = len(text.split())
+                        click.echo(f"  Sample word count (page 1): ~{word_count}")
                         
         reporter.complete("Analysis complete")
     

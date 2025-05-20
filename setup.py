@@ -23,7 +23,6 @@ install_requires = [
 
 # Optional dependencies
 extras_require = {
-    "llama": ["llama-cpp-python>=0.2.0"],
     "dev": ["pytest>=7.0.0", "pytest-cov>=4.0.0"],
     "test": ["pytest>=7.0.0", "pytest-cov>=4.0.0", "pytest-mock>=3.0.0"],
 }

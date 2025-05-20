@@ -11,7 +11,6 @@ from pdf_manipulator.core.document import PDFDocument
 from pdf_manipulator.core.pipeline import DocumentProcessor as CoreDocumentProcessor
 from pdf_manipulator.intelligence.processor import create_processor
 from pdf_manipulator.memory.memory_adapter import MemoryConfig
-from pdf_manipulator.extractors.ocr import OCRProcessor
 from .base import ProgressReporter, validate_file_exists, validate_directory
 from pdf_manipulator.utils.logging_config import get_logger
 
@@ -22,18 +21,14 @@ logger = get_logger("cli.process_commands")
 @click.argument('path', type=click.Path(exists=True), callback=validate_file_exists)
 @click.argument('output_dir', type=click.Path(), required=False, callback=validate_directory)
 @click.option('--use-ai/--no-ai', help='Use AI for transcription')
-@click.option('--backend', help='AI backend to use (markitdown, ollama, llama_cpp, llama_cpp_http)')
+@click.option('--backend', help='AI backend to use (markitdown, ollama, openai)')
 @click.option('--model', help='Model name')
 @click.option('--dpi', type=int, help='Rendering DPI')
-@click.option('--lang', help='OCR language')
-@click.option('--tessdata-dir', type=click.Path(), help='Tesseract data directory')
-@click.option('--tesseract-cmd', type=click.Path(), help='Path to tesseract executable')
 @click.option('--pages', type=str, help='Pages to process (e.g., "0,1,5-10")')
 @click.option('--alpha/--no-alpha', help='Include alpha channel in rendering')
 @click.option('--zoom', type=float, help='Additional zoom factor for rendering')
 @click.option('--prefix', default='page_', help='Prefix for page images')
 @click.option('--suffix', default='', help='Suffix for page images')
-@click.option('--ocr-fallback/--no-ocr-fallback', default=True, help='Use OCR if AI fails')
 @click.option('--direct/--render', 'use_direct', default=None, 
               help='Use direct conversion (markitdown) or render pipeline')
 @click.option('--memory/--no-memory', default=None, help='Enable memory graph storage')
@@ -53,15 +48,11 @@ def process_document(
     backend: Optional[str],
     model: Optional[str],
     dpi: Optional[int],
-    lang: Optional[str],
-    tessdata_dir: Optional[str],
-    tesseract_cmd: Optional[str],
     pages: Optional[str],
     alpha: Optional[bool],
     zoom: Optional[float],
     prefix: str,
     suffix: str,
-    ocr_fallback: bool,
     use_direct: Optional[bool],
     memory: Optional[bool],
     domain: str,
@@ -75,8 +66,13 @@ def process_document(
     """Process a document and extract semantic content.
     
     This is the primary command for transforming documents into semantic knowledge graphs.
-    It supports both direct conversion (markitdown) and rendering pipelines.
+    It supports both direct conversion (markitdown) and rendering pipelines with OpenAI or Ollama backends.
     
+    Backend options:
+      --backend markitdown  Fast, direct PDF-to-markdown conversion
+      --backend openai      Advanced ML processing with OpenAI models
+      --backend ollama      Local multimodal processing with Ollama
+
     When using OpenAI backend, you can enable enhanced debugging with the --debug flag:
     
       mge extract document.pdf --backend openai --model gpt-4o-mini --debug
@@ -122,14 +118,8 @@ def process_document(
         logger.info(f"INITIAL CONFIG: backend={backend}, model={model}, debug={debug}")
         logger.info(f"CONFIG OBJECT: {config.get('intelligence', {})}")
         
-        # Prepare OCR processor
+        # Initialize with no OCR processor
         ocr_processor = None
-        if ocr_fallback or not use_ai:
-            ocr_processor = OCRProcessor(
-                language=lang or config.get('ocr', {}).get('language', 'eng'),
-                tessdata_dir=tessdata_dir or config.get('ocr', {}).get('tessdata_dir'),
-                tesseract_cmd=tesseract_cmd or config.get('ocr', {}).get('tesseract_cmd')
-            )
         
         # Prepare AI processor with semantic layering
         ai_transcriber = None
@@ -268,8 +258,8 @@ def process_document(
                     # Wrap in DocumentProcessor interface
                     ai_transcriber = DocumentProcessor(
                         intelligence_backend=enhancement_backend,
-                        ocr_processor=ocr_processor.extract_text if ocr_processor else None,
-                        use_ocr_fallback=ocr_fallback
+                        ocr_processor=None,
+                        use_ocr_fallback=False
                     )
                     
                     # Inject semantic processor
@@ -285,10 +275,7 @@ def process_document(
                     )
             except Exception as e:
                 reporter.error(f"Failed to initialize AI backend: {e}")
-                if not ocr_fallback:
-                    raise
-                click.echo("Falling back to OCR only", err=True)
-                use_ai = False
+                raise
         
         # Prepare memory configuration
         memory_config = None
