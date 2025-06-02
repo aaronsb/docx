@@ -16,18 +16,18 @@ class DocumentProcessor:
         self,
         intelligence_backend: IntelligenceBackend,
         ocr_processor: Optional[Callable] = None,
-        use_ocr_fallback: bool = True,
+        use_ocr_fallback: bool = False,
     ):
         """Initialize the document processor.
         
         Args:
             intelligence_backend: Intelligence backend instance
-            ocr_processor: OCR processor function (extract_text method)
-            use_ocr_fallback: Whether to use OCR as fallback
+            ocr_processor: OCR processor function (deprecated - kept for compatibility)
+            use_ocr_fallback: Whether to use OCR as fallback (deprecated - kept for compatibility)
         """
         self.intelligence = intelligence_backend
-        self.ocr_processor = ocr_processor
-        self.use_ocr_fallback = use_ocr_fallback
+        self.ocr_processor = None  # OCR methods removed
+        self.use_ocr_fallback = False  # OCR fallback disabled
         
         # Optional semantic processor for enhanced pipeline
         self.semantic_processor = None
@@ -60,26 +60,12 @@ class DocumentProcessor:
             if self.intelligence.supports_image_input():
                 # Process with intelligence backend
                 return self.intelligence.transcribe_image(image_path, prompt=custom_prompt)
-            elif self.use_ocr_fallback and self.ocr_processor:
-                # Use OCR and then clean with intelligence
-                ocr_text = self.ocr_processor(image_path)
-                return self.intelligence.transcribe_text(ocr_text)
             else:
                 raise IntelligenceError(
-                    f"Backend {self.intelligence.get_name()} doesn't support image input "
-                    "and no OCR fallback is provided."
+                    f"Backend {self.intelligence.get_name()} doesn't support image input."
                 )
         
         except Exception as e:
-            # Try OCR fallback if available
-            if self.use_ocr_fallback and self.ocr_processor:
-                try:
-                    return self.ocr_processor(image_path)
-                except Exception as ocr_error:
-                    raise IntelligenceError(
-                        f"Both intelligence processing and OCR fallback failed: {e}. OCR error: {ocr_error}"
-                    )
-            
             # Re-raise original error
             raise
     
@@ -200,15 +186,19 @@ class DocumentProcessor:
                     # Store semantic analysis for page info
                     semantic_info = result
                     
-                # Check for enhanced flow capability (fallback)
-                elif (hasattr(self.intelligence, 'process_page_with_context') and
-                      self.ocr_processor and extract_first):
-                    # Enhanced flow: First extract, then enhance
+                # Check for enhanced flow capability (using markitdown extraction)
+                elif hasattr(self.intelligence, 'process_page_with_context'):
+                    # Enhanced flow: Use direct extraction via the intelligence backend
                     logger.debug(f"Using enhanced flow for page {i+1}")
                     has_enhanced_flow = True
                     
-                    # Step 1: Extract text using OCR/markitdown
-                    extracted_text = self.ocr_processor(str(image_path))
+                    # Step 1: Use backend's direct extraction if available
+                    try:
+                        # Try direct transcription first
+                        extracted_text = self.intelligence.transcribe_image(str(image_path))
+                    except Exception as e:
+                        logger.warning(f"Direct extraction failed, continuing with empty text: {e}")
+                        extracted_text = ""
                     
                     # Step 2: Build context from previous pages
                     context = {
@@ -414,13 +404,18 @@ class DocumentProcessor:
                     # Store semantic analysis for page info
                     semantic_info = result
                     
-                # Check for enhanced flow capability (fallback)
-                elif (hasattr(self.intelligence, 'process_page_with_context') and
-                      self.ocr_processor):
+                # Check for enhanced flow capability (using direct extraction)
+                elif hasattr(self.intelligence, 'process_page_with_context'):
                     # Use same enhanced flow as in transcribe_document_pages
                     logger.debug(f"Using enhanced flow for page {i+1}")
                     has_enhanced_flow = True
-                    extracted_text = self.ocr_processor(str(image_path))
+                    
+                    # Try direct transcription first
+                    try:
+                        extracted_text = self.intelligence.transcribe_image(str(image_path))
+                    except Exception as e:
+                        logger.warning(f"Direct extraction failed, continuing with empty text: {e}")
+                        extracted_text = ""
                     
                     context = {
                         'page_number': i + 1,
@@ -512,14 +507,14 @@ class DocumentProcessor:
 
 def create_processor(
     config: Dict[str, Any],
-    ocr_processor=None,
+    ocr_processor=None,  # Kept for backward compatibility
     backend_name: Optional[str] = None,
 ) -> DocumentProcessor:
     """Create a document processor with intelligence backend.
     
     Args:
         config: Configuration dictionary
-        ocr_processor: OCR processor instance
+        ocr_processor: Deprecated parameter, kept for compatibility
         backend_name: Optional name of backend to use
         
     Returns:
@@ -536,12 +531,10 @@ def create_processor(
         backend = manager.get_backend(backend_name)
         
         # Create document processor
-        use_ocr_fallback = config.get("processing", {}).get("use_ocr_fallback", True)
-        
         processor = DocumentProcessor(
             intelligence_backend=backend,
-            ocr_processor=ocr_processor.extract_text if ocr_processor else None,
-            use_ocr_fallback=use_ocr_fallback,
+            ocr_processor=None,
+            use_ocr_fallback=False,
         )
         
         return processor

@@ -6,7 +6,7 @@ from .base import create_cli_context
 from .process_commands import process_document, process_directory
 from .memory_commands import memory_group
 from .config_commands import manage_config, init_config
-from .utility_commands import render_pdf, ocr_image, transcribe_image, pdf_info, manage_backends
+from .utility_commands import render_pdf, transcribe_image, pdf_info, manage_backends
 from .semantic_commands import semantic_group
 from ..utils.env_loader import load_dotenv
 
@@ -52,7 +52,6 @@ cli.add_command(semantic_group)
 cli.add_command(manage_config)
 cli.add_command(init_config)
 cli.add_command(render_pdf)
-cli.add_command(ocr_image)
 cli.add_command(transcribe_image)
 cli.add_command(pdf_info)
 cli.add_command(manage_backends)

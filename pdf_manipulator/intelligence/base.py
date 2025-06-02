@@ -178,14 +178,6 @@ class IntelligenceManager:
                 timeout=timeout
             )
         
-        elif backend_name == "llama_cpp":
-            from pdf_manipulator.intelligence.llama_cpp import LlamaCppBackend
-            return LlamaCppBackend(backend_config)
-        
-        elif backend_name == "llama_cpp_http":
-            from pdf_manipulator.intelligence.llama_cpp_http import LlamaCppHttpBackend
-            return LlamaCppHttpBackend(backend_config)
-        
         else:
             raise IntelligenceError(f"Unknown intelligence backend: {backend_name}")
     
@@ -216,20 +208,6 @@ class IntelligenceManager:
         try:
             from pdf_manipulator.intelligence.openai_multimodal import OpenAIMultimodalBackend
             available.append("openai")
-        except ImportError:
-            pass
-        
-        # llama.cpp
-        try:
-            from pdf_manipulator.intelligence.llama_cpp import LlamaCppBackend
-            available.append("llama_cpp")
-        except ImportError:
-            pass
-        
-        # llama.cpp HTTP
-        try:
-            from pdf_manipulator.intelligence.llama_cpp_http import LlamaCppHttpBackend
-            available.append("llama_cpp_http")
         except ImportError:
             pass
         

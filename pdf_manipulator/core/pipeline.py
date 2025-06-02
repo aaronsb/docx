@@ -160,7 +160,7 @@ class DocumentProcessor:
         self,
         output_dir: Union[str, Path],
         renderer_kwargs: Optional[Dict[str, Any]] = None,
-        ocr_processor=None,
+        ocr_processor=None,  # Kept for backward compatibility but not used
         ai_transcriber=None,
         memory_config: Optional[MemoryConfig] = None,
         intelligence_processor=None,
@@ -170,14 +170,14 @@ class DocumentProcessor:
         Args:
             output_dir: Directory for output files
             renderer_kwargs: Keyword arguments for the image renderer
-            ocr_processor: OCR processor instance
+            ocr_processor: Kept for backward compatibility but not used
             ai_transcriber: AI transcriber instance
             memory_config: Optional memory storage configuration
             intelligence_processor: Optional intelligence processor for memory summaries
         """
         self.output_dir = Path(output_dir)
         self.renderer_kwargs = renderer_kwargs or {}
-        self.ocr_processor = ocr_processor
+        self.ocr_processor = None  # Set to None regardless of what was passed
         self.ai_transcriber = ai_transcriber
         self.memory_config = memory_config
         self.intelligence_processor = intelligence_processor
@@ -302,11 +302,6 @@ class DocumentProcessor:
                     progress.start_stage("transcription", total=len(image_paths))
                     
                 if use_ai and self.ai_transcriber:
-                    # Get OCR function for fallback
-                    ocr_func = None
-                    if self.ocr_processor:
-                        ocr_func = self.ocr_processor.extract_text
-                    
                     # Process with AI transcription
                     if hasattr(self.ai_transcriber, 'transcribe_document_pages_with_progress'):
                         toc = self.ai_transcriber.transcribe_document_pages_with_progress(
@@ -323,21 +318,8 @@ class DocumentProcessor:
                         )
                     stats["transcription_method"] = "ai"
                 
-                elif self.ocr_processor:
-                    # Process with OCR only
-                    # Create a DocumentAnalyzer from the OCR processor
-                    from pdf_manipulator.extractors.ocr import DocumentAnalyzer
-                    analyzer = DocumentAnalyzer(self.ocr_processor)
-                    
-                    toc = analyzer.analyze_document_pages(
-                        image_paths=image_paths,
-                        output_dir=markdown_dir,
-                        base_filename=base_filename,
-                    )
-                    stats["transcription_method"] = "ocr"
-                
                 else:
-                    raise PDFManipulatorError("No OCR or AI processor available")
+                    raise PDFManipulatorError("No AI processor available for transcription")
                     
                 if progress:
                     progress.complete_stage("transcription")
