@@ -180,8 +180,88 @@ else
     echo "   Run: python -c \"import nltk; nltk.download(['punkt', 'stopwords', 'averaged_perceptron_tagger'])\""
 fi
 
-# Step 6: Check external dependencies
-echo -e "\n${BOLD}${BLUE}Step 6: Checking External Dependencies${RESET}"
+# Step 6: OpenAI API Configuration
+echo -e "\n${BOLD}${BLUE}Step 6: OpenAI API Configuration${RESET}"
+
+# Check for existing .env file
+ENV_FILE="$PROJECT_DIR/.env"
+OPENAI_KEY_SET=false
+
+if [ -f "$ENV_FILE" ]; then
+    # Check if OPENAI_API_KEY is already set
+    if grep -q "OPENAI_API_KEY=" "$ENV_FILE" 2>/dev/null; then
+        print_status "Existing OpenAI API key found in .env file"
+        OPENAI_KEY_SET=true
+    fi
+fi
+
+# Check environment variable
+if [ -n "$OPENAI_API_KEY" ]; then
+    print_status "OpenAI API key found in environment"
+    OPENAI_KEY_SET=true
+fi
+
+# Prompt for API key if not set
+if [ "$OPENAI_KEY_SET" = false ]; then
+    echo -e "\n${CYAN}OpenAI API key is required for enhanced AI features.${RESET}"
+    echo -e "${CYAN}You can get an API key from: https://platform.openai.com/api-keys${RESET}"
+    echo ""
+    read -p "Enter your OpenAI API key (or press Enter to skip): " openai_key
+    
+    if [ -n "$openai_key" ]; then
+        # Validate API key format (should start with sk- and be reasonable length)
+        if [[ "$openai_key" =~ ^sk-[a-zA-Z0-9]{48,}$ ]]; then
+            # Create or update .env file
+            if [ -f "$ENV_FILE" ]; then
+                # Remove existing OPENAI_API_KEY if present
+                grep -v "^OPENAI_API_KEY=" "$ENV_FILE" > "$ENV_FILE.tmp" || true
+                mv "$ENV_FILE.tmp" "$ENV_FILE"
+            fi
+            
+            # Add new API key
+            echo "OPENAI_API_KEY=$openai_key" >> "$ENV_FILE"
+            print_success "OpenAI API key saved to .env file"
+            OPENAI_KEY_SET=true
+            
+            # Ensure .env is in .gitignore
+            if [ -f "$PROJECT_DIR/.gitignore" ]; then
+                if ! grep -q "^\.env$" "$PROJECT_DIR/.gitignore" 2>/dev/null; then
+                    echo ".env" >> "$PROJECT_DIR/.gitignore"
+                    print_status "Added .env to .gitignore for security"
+                fi
+            fi
+            
+            # Test the API key
+            print_status "Testing OpenAI API key..."
+            if python3 -c "
+import os
+import openai
+os.environ['OPENAI_API_KEY'] = '$openai_key'
+try:
+    client = openai.OpenAI()
+    models = client.models.list()
+    print('API key is valid')
+    exit(0)
+except Exception as e:
+    print(f'API key test failed: {e}')
+    exit(1)
+" 2>/dev/null; then
+                print_success "OpenAI API key validated successfully"
+            else
+                print_warning "Could not validate API key - it may be incorrect or there may be a network issue"
+            fi
+        else
+            print_warning "Invalid API key format. OpenAI keys should start with 'sk-'"
+            echo "   You can add it later to the .env file as: OPENAI_API_KEY=your-key-here"
+        fi
+    else
+        print_warning "Skipping OpenAI API key configuration"
+        echo "   You can add it later to the .env file as: OPENAI_API_KEY=your-key-here"
+    fi
+fi
+
+# Step 7: Check external dependencies
+echo -e "\n${BOLD}${BLUE}Step 7: Checking External Dependencies${RESET}"
 
 # Check for Tesseract
 if command_exists tesseract; then
@@ -198,13 +278,13 @@ if curl -s --head --fail "http://localhost:11434/api/tags" >/dev/null 2>&1; then
     print_success "Ollama detected at http://localhost:11434"
     OLLAMA_AVAILABLE=true
 else
-    print_warning "Ollama not detected - AI features will be limited"
+    print_warning "Ollama not detected - Local AI features will be limited"
     echo "   Install from: https://ollama.ai"
     OLLAMA_AVAILABLE=false
 fi
 
-# Step 7: Configuration
-echo -e "\n${BOLD}${BLUE}Step 7: Configuration${RESET}"
+# Step 8: Configuration
+echo -e "\n${BOLD}${BLUE}Step 8: Configuration${RESET}"
 
 # Create config directories if they don't exist
 mkdir -p "$USER_CONFIG_DIR"
@@ -238,6 +318,15 @@ else
 fi
 
 if [ "$CREATE_CONFIG" = true ]; then
+    # Determine default backend based on available services
+    if [ "$OPENAI_KEY_SET" = true ]; then
+        DEFAULT_BACKEND="openai_multimodal"
+    elif [ "$OLLAMA_AVAILABLE" = true ]; then
+        DEFAULT_BACKEND="ollama"
+    else
+        DEFAULT_BACKEND="markitdown"
+    fi
+    
     # Simple configuration for memory graph setup
     cat > "$CONFIG_FILE" << EOF
 # Memory Graph Extract Configuration
@@ -263,16 +352,25 @@ memory:
 
 # AI intelligence configuration
 intelligence:
-  default_backend: "${OLLAMA_AVAILABLE:+ollama}${OLLAMA_AVAILABLE:-markitdown}"
+  default_backend: "$DEFAULT_BACKEND"
   backends:
     markitdown:
-      # Direct semantic extraction
+      # Direct semantic extraction (fastest, limited understanding)
     ollama:
       model: "llava:latest"
       base_url: "http://localhost:11434"
       timeout: 120
+    ollama_multimodal:
+      model: "llava:latest"
+      base_url: "http://localhost:11434"
+      timeout: 120
+    openai_multimodal:
+      model: "gpt-4o-mini"  # Cost-effective model for document processing
+      timeout: 120
+      max_tokens: 4096
     memory_enhanced:
       use_context: true
+      backend: "$DEFAULT_BACKEND"  # Use the best available backend
 
 # Document processing settings
 processing:
@@ -289,8 +387,8 @@ EOF
     print_success "Configuration file created at $CONFIG_FILE"
 fi
 
-# Step 8: Create activation script
-echo -e "\n${BOLD}${BLUE}Step 8: Creating Convenience Scripts${RESET}"
+# Step 9: Create activation script
+echo -e "\n${BOLD}${BLUE}Step 9: Creating Convenience Scripts${RESET}"
 
 # Create an activation script
 ACTIVATE_SCRIPT="$PROJECT_DIR/activate.sh"
@@ -313,8 +411,8 @@ EOF
 chmod +x "$ACTIVATE_SCRIPT"
 print_success "Created activation script: ./activate.sh"
 
-# Step 9: Test installation
-echo -e "\n${BOLD}${BLUE}Step 9: Testing Installation${RESET}"
+# Step 10: Test installation
+echo -e "\n${BOLD}${BLUE}Step 10: Testing Installation${RESET}"
 
 print_status "Verifying mge command..."
 if mge --version >/dev/null 2>&1; then
@@ -325,6 +423,20 @@ fi
 
 # Final summary
 echo -e "\n${BOLD}${GREEN}Setup Complete!${RESET}"
+
+# Show configured backend
+echo -e "\n${BOLD}AI Backend Configuration:${RESET}"
+if [ "$OPENAI_KEY_SET" = true ]; then
+    echo -e "  ${GREEN}✓${RESET} OpenAI API configured (default backend)"
+    echo -e "    Using cost-effective gpt-4o-mini model"
+elif [ "$OLLAMA_AVAILABLE" = true ]; then
+    echo -e "  ${GREEN}✓${RESET} Ollama configured (default backend)"
+    echo -e "    Using local llava:latest model"
+else
+    echo -e "  ${YELLOW}⚠${RESET} Using basic markitdown backend"
+    echo -e "    Limited AI capabilities - consider adding OpenAI API key"
+fi
+
 echo -e "\n${BOLD}To use Memory Graph Extract:${RESET}"
 echo -e "1. Activate the environment: ${CYAN}source activate.sh${RESET}"
 echo -e "2. Extract documents: ${CYAN}mge extract document.pdf output/ --memory${RESET}"
@@ -335,8 +447,16 @@ echo -e "  ${CYAN}mge --help${RESET}              # Show all commands"
 echo -e "  ${CYAN}mge memory --help${RESET}       # Memory graph operations"
 echo -e "  ${CYAN}mge config --edit${RESET}       # Edit configuration"
 
-if [ "$OLLAMA_AVAILABLE" = false ]; then
-    echo -e "\n${YELLOW}Note:${RESET} For enhanced AI features, install Ollama from https://ollama.ai"
+# Provide recommendations based on setup
+if [ "$OPENAI_KEY_SET" = false ]; then
+    echo -e "\n${YELLOW}Recommendation:${RESET} Add an OpenAI API key for best results:"
+    echo -e "  1. Get a key from: ${CYAN}https://platform.openai.com/api-keys${RESET}"
+    echo -e "  2. Add to .env file: ${CYAN}echo 'OPENAI_API_KEY=your-key' >> .env${RESET}"
+fi
+
+if [ "$OLLAMA_AVAILABLE" = false ] && [ "$OPENAI_KEY_SET" = false ]; then
+    echo -e "\n${YELLOW}Alternative:${RESET} Install Ollama for local AI processing:"
+    echo -e "  Visit: ${CYAN}https://ollama.ai${RESET}"
 fi
 
 echo -e "\n${BOLD}Documentation:${RESET}"
