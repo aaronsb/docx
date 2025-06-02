@@ -1,320 +1,313 @@
 #!/bin/bash
-# pdfx-setup
-# Interactive configuration script for the PDF Extractor tool
+# mge-setup - Complete setup script for Memory Graph Extract
+# This script handles virtual environment creation, dependency installation, and configuration
 
 # Text formatting
 BOLD="\033[1m"
 GREEN="\033[32m"
 BLUE="\033[34m"
 CYAN="\033[36m"
+RED="\033[31m"
+YELLOW="\033[33m"
 RESET="\033[0m"
 
 # Configuration paths
 USER_CONFIG_DIR="$HOME/.config/pdf_manipulator"
 CONFIG_FILE="$USER_CONFIG_DIR/config.yaml"
-
-# Create config directories if they don't exist
-mkdir -p "$USER_CONFIG_DIR"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VENV_DIR="$PROJECT_DIR/venv"
 
 # Welcome message
 clear
-echo -e "${BOLD}${BLUE}PDF Extractor Configuration Wizard${RESET}"
-echo -e "${CYAN}This script will help you set up your PDF Extractor (pdfx) configuration.${RESET}"
-echo "It will create a configuration file at: $CONFIG_FILE"
+echo -e "${BOLD}${BLUE}Memory Graph Extract Setup Wizard${RESET}"
+echo -e "${CYAN}This script will help you set up Memory Graph Extract (mge) with all dependencies.${RESET}"
 echo ""
 
-# Check if config already exists
-if [ -f "$CONFIG_FILE" ]; then
-    echo -e "${BOLD}Existing configuration detected.${RESET}"
-    read -p "Do you want to (r)econfigure, (e)dit current config, or (q)uit? [r/e/q]: " choice
-    case "$choice" in
-        r|R) ;;  # Continue with new config
-        e|E) 
-            # Open in preferred editor
-            if [ -n "$EDITOR" ]; then
-                $EDITOR "$CONFIG_FILE"
-            elif command -v nano &> /dev/null; then
-                nano "$CONFIG_FILE"
-            elif command -v vim &> /dev/null; then
-                vim "$CONFIG_FILE"
-            else
-                echo "No editor found. Please edit $CONFIG_FILE manually."
-            fi
-            echo -e "${GREEN}Configuration updated. Use 'pdfx' to process documents.${RESET}"
-            exit 0
+# Function to check if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Function to print status
+print_status() {
+    echo -e "${CYAN}→${RESET} $1"
+}
+
+print_success() {
+    echo -e "${GREEN}✓${RESET} $1"
+}
+
+print_error() {
+    echo -e "${RED}✗${RESET} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠${RESET} $1"
+}
+
+# Step 1: Check Python installation
+echo -e "\n${BOLD}${BLUE}Step 1: Checking Python Installation${RESET}"
+if command_exists python3; then
+    PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+    PYTHON_MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
+    PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
+    
+    if [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -ge 8 ]; then
+        print_success "Python $PYTHON_VERSION found (requirement: >=3.8)"
+    else
+        print_error "Python $PYTHON_VERSION found, but Python >=3.8 is required"
+        exit 1
+    fi
+else
+    print_error "Python 3 not found. Please install Python 3.8 or later."
+    exit 1
+fi
+
+# Step 2: Virtual Environment Setup
+echo -e "\n${BOLD}${BLUE}Step 2: Virtual Environment Setup${RESET}"
+
+# Check if venv exists
+if [ -d "$VENV_DIR" ]; then
+    print_status "Virtual environment already exists at $VENV_DIR"
+    read -p "Do you want to (u)se existing, (r)ecreate, or (q)uit? [u/r/q]: " venv_choice
+    case "$venv_choice" in
+        r|R)
+            print_status "Removing existing virtual environment..."
+            rm -rf "$VENV_DIR"
             ;;
-        *) 
+        q|Q)
             echo "Exiting without changes."
             exit 0
+            ;;
+        *)
+            print_status "Using existing virtual environment"
             ;;
     esac
 fi
 
-# Helper function for multi-line input with a default value
-multi_line_input() {
-    local prompt="$1"
-    local default="$2"
-    local variable_name="$3"
-    
-    echo -e "${BOLD}$prompt${RESET}"
-    if [ -n "$default" ]; then
-        echo -e "Default: $default"
-        echo -e "Press Enter to use default or type a new value."
-    fi
-    
-    # Store the old IFS
-    OLDIFS=$IFS
-    # Set IFS to empty to preserve whitespace
-    IFS=''
-    
-    # Display the prompt and read input
-    read -p "> " input
-    
-    # Restore IFS
-    IFS=$OLDIFS
-    
-    # Use default if input is empty
-    if [ -z "$input" ]; then
-        eval "$variable_name=\"$default\""
+# Create virtual environment if it doesn't exist
+if [ ! -d "$VENV_DIR" ]; then
+    print_status "Creating virtual environment..."
+    if python3 -m venv "$VENV_DIR"; then
+        print_success "Virtual environment created successfully"
     else
-        eval "$variable_name=\"$input\""
-    fi
-}
-
-# Simple input with default
-input_with_default() {
-    local prompt="$1"
-    local default="$2"
-    local variable_name="$3"
-    
-    if [ -n "$default" ]; then
-        read -p "${BOLD}$prompt${RESET} [$default]: " input
-        if [ -z "$input" ]; then
-            eval "$variable_name=\"$default\""
-        else
-            eval "$variable_name=\"$input\""
-        fi
-    else
-        read -p "${BOLD}$prompt${RESET}: " input
-        eval "$variable_name=\"$input\""
-    fi
-}
-
-# Yes/no prompt
-yes_no_prompt() {
-    local prompt="$1"
-    local default="$2"
-    local variable_name="$3"
-    
-    local yn_prompt
-    if [ "$default" = "y" ]; then
-        yn_prompt="[Y/n]"
-    else
-        yn_prompt="[y/N]"
-    fi
-    
-    while true; do
-        read -p "${BOLD}$prompt${RESET} $yn_prompt: " yn
-        case $yn in
-            [Yy]*) eval "$variable_name=true"; break ;;
-            [Nn]*) eval "$variable_name=false"; break ;;
-            "") 
-                if [ "$default" = "y" ]; then
-                    eval "$variable_name=true"
-                else
-                    eval "$variable_name=false"
-                fi
-                break
-                ;;
-            *) echo "Please answer yes or no." ;;
-        esac
-    done
-}
-
-# Function to detect Ollama
-detect_ollama() {
-    # Check if Ollama is installed and reachable
-    if curl -s --head --fail "http://localhost:11434/api/tags" > /dev/null 2>&1; then
-        echo "Ollama detected at http://localhost:11434"
-        DEFAULT_BACKEND="ollama"
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Function to detect llama.cpp
-detect_llama_cpp() {
-    # Check for common locations of llama.cpp builds
-    for location in \
-        "$HOME/llama.cpp" \
-        "$HOME/Projects/llama.cpp" \
-        "$HOME/Projects/ai/llama.cpp" \
-        "$HOME/Projects/ai/llama/llama.cpp" \
-        "/usr/local/src/llama.cpp" 
-    do
-        if [ -f "$location/main" ] || [ -f "$location/server" ]; then
-            echo "Potential llama.cpp installation found at: $location"
-            LLAMA_CPP_PATH="$location"
-            if [ -f "$location/server" ]; then
-                echo "llama.cpp server detected!"
-                DEFAULT_BACKEND="llama_cpp_http"
-            else
-                DEFAULT_BACKEND="llama_cpp"
-            fi
-            return 0
-        fi
-    done
-    return 1
-}
-
-# General settings
-echo -e "\n${BOLD}${BLUE}General Settings${RESET}"
-input_with_default "Default output directory" "output" OUTPUT_DIR
-
-# Rendering settings
-echo -e "\n${BOLD}${BLUE}Rendering Settings${RESET}"
-input_with_default "Resolution in DPI" "300" DPI
-yes_no_prompt "Include alpha channel (transparency)" "n" ALPHA
-input_with_default "Zoom factor" "1.0" ZOOM
-
-# OCR settings
-echo -e "\n${BOLD}${BLUE}OCR Settings${RESET}"
-input_with_default "OCR language" "eng" OCR_LANG
-
-# Try to detect Tesseract installation
-TESSERACT_CMD=""
-TESSDATA_DIR=""
-if command -v tesseract &> /dev/null; then
-    TESSERACT_CMD=$(command -v tesseract)
-    echo "Tesseract detected at: $TESSERACT_CMD"
-    
-    # Try to find tessdata directory
-    if [ -d "/usr/share/tesseract-ocr/4.00/tessdata" ]; then
-        TESSDATA_DIR="/usr/share/tesseract-ocr/4.00/tessdata"
-    elif [ -d "/usr/share/tessdata" ]; then
-        TESSDATA_DIR="/usr/share/tessdata"
-    elif [ -d "/usr/local/share/tessdata" ]; then
-        TESSDATA_DIR="/usr/local/share/tessdata"
-    fi
-    
-    if [ -n "$TESSDATA_DIR" ]; then
-        echo "Tessdata directory detected at: $TESSDATA_DIR"
+        print_error "Failed to create virtual environment"
+        exit 1
     fi
 fi
 
-# Let user override detected Tesseract settings
-input_with_default "Tesseract executable" "$TESSERACT_CMD" TESSERACT_CMD
-input_with_default "Tessdata directory" "$TESSDATA_DIR" TESSDATA_DIR
+# Activate virtual environment
+print_status "Activating virtual environment..."
+source "$VENV_DIR/bin/activate"
+print_success "Virtual environment activated"
 
-# AI backend settings
-echo -e "\n${BOLD}${BLUE}AI Backend Settings${RESET}"
-
-# Try to detect potential backends
-DEFAULT_BACKEND="ollama"  # Default if nothing else detected
-
-if ! detect_ollama; then
-    detect_llama_cpp
+# Step 3: Upgrade pip and setuptools
+echo -e "\n${BOLD}${BLUE}Step 3: Upgrading Package Tools${RESET}"
+print_status "Upgrading pip and setuptools..."
+if pip install --upgrade pip setuptools wheel >/dev/null 2>&1; then
+    print_success "Package tools upgraded successfully"
+else
+    print_error "Failed to upgrade package tools"
+    exit 1
 fi
 
-# Ask user which backend to use
-echo "Available backends: ollama, llama_cpp, llama_cpp_http"
-input_with_default "Default AI backend" "$DEFAULT_BACKEND" BACKEND
+# Step 4: Install package
+echo -e "\n${BOLD}${BLUE}Step 4: Installing Memory Graph Extract${RESET}"
 
-# Backend-specific settings
-echo -e "\n${BOLD}${BLUE}Backend Configuration${RESET}"
+# Ask about optional dependencies
+echo -e "\n${CYAN}Select installation type:${RESET}"
+echo "1) Basic installation (core functionality)"
+echo "2) Development installation (includes test tools)"
+echo "3) Full installation (all optional features)"
 
-# Ollama settings
-echo -e "\n${CYAN}Ollama Settings${RESET}"
-input_with_default "Ollama model" "llava:latest" OLLAMA_MODEL
-input_with_default "Ollama API URL" "http://localhost:11434" OLLAMA_URL
-input_with_default "Ollama timeout (seconds)" "120" OLLAMA_TIMEOUT
+read -p "Enter your choice [1-3]: " install_choice
 
-# Llama.cpp settings
-echo -e "\n${CYAN}llama.cpp Settings${RESET}"
-input_with_default "Model path (GGUF file)" "" LLAMA_MODEL_PATH
-input_with_default "Context size (tokens)" "2048" LLAMA_CTX
-input_with_default "GPU layers (-1 for all)" "-1" LLAMA_GPU_LAYERS
+case "$install_choice" in
+    2)
+        print_status "Installing with development dependencies..."
+        INSTALL_CMD="pip install -e '.[dev]'"
+        ;;
+    3)
+        print_status "Installing with all dependencies..."
+        INSTALL_CMD="pip install -e '.[dev,test]'"
+        ;;
+    *)
+        print_status "Installing basic package..."
+        INSTALL_CMD="pip install -e ."
+        ;;
+esac
 
-# Llama.cpp HTTP settings
-echo -e "\n${CYAN}llama.cpp HTTP Server Settings${RESET}"
-input_with_default "Server URL" "http://localhost:8080" LLAMA_HTTP_URL
-input_with_default "Max tokens to predict" "2048" LLAMA_PREDICT
-input_with_default "Temperature" "0.1" LLAMA_TEMP
+# Install the package
+cd "$PROJECT_DIR"
+if eval "$INSTALL_CMD"; then
+    print_success "Memory Graph Extract installed successfully"
+else
+    print_error "Failed to install Memory Graph Extract"
+    exit 1
+fi
 
-# Processing settings
-echo -e "\n${BOLD}${BLUE}Processing Settings${RESET}"
-multi_line_input "Default prompt for image transcription" "Transcribe all text in this document image to markdown format. Preserve layout and formatting as best as possible." PROMPT
-yes_no_prompt "Use OCR as fallback for AI" "y" OCR_FALLBACK
+# Step 5: Check external dependencies
+echo -e "\n${BOLD}${BLUE}Step 5: Checking External Dependencies${RESET}"
 
-# Generate the config file
-cat > "$CONFIG_FILE" << EOF
-# PDF Extractor Configuration
+# Check for Tesseract
+if command_exists tesseract; then
+    TESSERACT_VERSION=$(tesseract --version 2>&1 | head -n 1)
+    print_success "Tesseract found: $TESSERACT_VERSION"
+else
+    print_warning "Tesseract not found - OCR features will be limited"
+    echo "   Install with: sudo apt-get install tesseract-ocr (Ubuntu/Debian)"
+    echo "                 brew install tesseract (macOS)"
+fi
+
+# Check for Ollama
+if curl -s --head --fail "http://localhost:11434/api/tags" >/dev/null 2>&1; then
+    print_success "Ollama detected at http://localhost:11434"
+    OLLAMA_AVAILABLE=true
+else
+    print_warning "Ollama not detected - AI features will be limited"
+    echo "   Install from: https://ollama.ai"
+    OLLAMA_AVAILABLE=false
+fi
+
+# Step 6: Configuration
+echo -e "\n${BOLD}${BLUE}Step 6: Configuration${RESET}"
+
+# Create config directories if they don't exist
+mkdir -p "$USER_CONFIG_DIR"
+
+# Check if config already exists
+if [ -f "$CONFIG_FILE" ]; then
+    print_status "Existing configuration detected"
+    read -p "Do you want to (k)eep existing, (r)econfigure, or (s)kip? [k/r/s]: " config_choice
+    case "$config_choice" in
+        r|R)
+            CREATE_CONFIG=true
+            ;;
+        s|S)
+            CREATE_CONFIG=false
+            ;;
+        *)
+            CREATE_CONFIG=false
+            print_status "Keeping existing configuration"
+            ;;
+    esac
+else
+    read -p "Do you want to create a configuration file? [Y/n]: " create_config
+    case "$create_config" in
+        n|N)
+            CREATE_CONFIG=false
+            ;;
+        *)
+            CREATE_CONFIG=true
+            ;;
+    esac
+fi
+
+if [ "$CREATE_CONFIG" = true ]; then
+    # Simple configuration for memory graph setup
+    cat > "$CONFIG_FILE" << EOF
+# Memory Graph Extract Configuration
 # Generated by setup script on $(date)
 
 # General settings
 general:
-  output_dir: "$OUTPUT_DIR"
-  
-  # Logging configuration
+  output_dir: "output"
   logging:
     level: "INFO"
-    file: null
 
-# PDF rendering settings
-rendering:
-  dpi: $DPI
-  alpha: $ALPHA
-  zoom: $ZOOM
-
-# OCR settings
-ocr:
-  language: "$OCR_LANG"
-  tessdata_dir: ${TESSDATA_DIR:+\"$TESSDATA_DIR\"}
-  tesseract_cmd: ${TESSERACT_CMD:+\"$TESSERACT_CMD\"}
+# Memory graph settings
+memory:
+  enabled: true
+  database_name: "memory_graph.db"
+  domain:
+    name: "knowledge"
+    description: "Document knowledge base"
+  extraction:
+    detect_relationships: true
+    generate_summaries: true
+    min_content_length: 50
 
 # AI intelligence configuration
 intelligence:
-  default_backend: "$BACKEND"
-  
-  # Configuration for different intelligence backends
+  default_backend: "${OLLAMA_AVAILABLE:+ollama}${OLLAMA_AVAILABLE:-markitdown}"
   backends:
-    # Ollama API backend
+    markitdown:
+      # Direct semantic extraction
     ollama:
-      model: "$OLLAMA_MODEL"
-      base_url: "$OLLAMA_URL"
-      timeout: $OLLAMA_TIMEOUT
-    
-    # Direct llama.cpp integration via Python bindings
-    llama_cpp:
-      model_path: ${LLAMA_MODEL_PATH:+\"$LLAMA_MODEL_PATH\"}
-      n_ctx: $LLAMA_CTX
-      n_gpu_layers: $LLAMA_GPU_LAYERS
-    
-    # llama.cpp HTTP server backend
-    llama_cpp_http:
-      base_url: "$LLAMA_HTTP_URL"
-      model: null
+      model: "llava:latest"
+      base_url: "http://localhost:11434"
       timeout: 120
-      n_predict: $LLAMA_PREDICT
-      temperature: $LLAMA_TEMP
+    memory_enhanced:
+      use_context: true
 
 # Document processing settings
 processing:
-  default_prompt: "$PROMPT"
-  use_ocr_fallback: $OCR_FALLBACK
+  default_prompt: "Extract semantic content from this document, identifying key concepts, relationships, and structure."
+  use_ocr_fallback: true
+
+# PDF rendering settings
+rendering:
+  dpi: 300
+  alpha: false
+  zoom: 1.0
 EOF
 
-# Make script executable
-chmod +x "$CONFIG_FILE"
+    print_success "Configuration file created at $CONFIG_FILE"
+fi
 
-echo -e "\n${GREEN}${BOLD}Configuration complete!${RESET}"
-echo -e "Configuration file created at: ${CYAN}$CONFIG_FILE${RESET}"
-echo -e "\n${BOLD}Quick Usage:${RESET}"
-echo -e "  ${CYAN}pdfx process document.pdf output/${RESET}"
-echo -e "  ${CYAN}pdfx transcribe image.png${RESET}"
-echo -e "  ${CYAN}pdfx extract document.pdf output/${RESET}"
-echo -e "  ${CYAN}pdfx render document.pdf output/${RESET}"
-echo -e "\n${BOLD}To change configuration:${RESET}"
-echo -e "  ${CYAN}pdfx-setup${RESET} or ${CYAN}pdfx config --edit${RESET}"
-echo -e "\nHappy document processing!"
+# Step 7: Create activation script
+echo -e "\n${BOLD}${BLUE}Step 7: Creating Convenience Scripts${RESET}"
+
+# Create an activation script
+ACTIVATE_SCRIPT="$PROJECT_DIR/activate.sh"
+cat > "$ACTIVATE_SCRIPT" << 'EOF'
+#!/bin/bash
+# Activate the Memory Graph Extract virtual environment
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV_DIR="$SCRIPT_DIR/venv"
+
+if [ -d "$VENV_DIR" ]; then
+    source "$VENV_DIR/bin/activate"
+    echo "Memory Graph Extract environment activated"
+    echo "Use 'mge' command to start extracting documents"
+else
+    echo "Virtual environment not found. Run ./scripts/mge-setup first."
+fi
+EOF
+
+chmod +x "$ACTIVATE_SCRIPT"
+print_success "Created activation script: ./activate.sh"
+
+# Step 8: Test installation
+echo -e "\n${BOLD}${BLUE}Step 8: Testing Installation${RESET}"
+
+print_status "Verifying mge command..."
+if mge --version >/dev/null 2>&1; then
+    print_success "mge command is working"
+else
+    print_warning "mge command not found in PATH"
+fi
+
+# Final summary
+echo -e "\n${BOLD}${GREEN}Setup Complete!${RESET}"
+echo -e "\n${BOLD}To use Memory Graph Extract:${RESET}"
+echo -e "1. Activate the environment: ${CYAN}source activate.sh${RESET}"
+echo -e "2. Extract documents: ${CYAN}mge extract document.pdf output/ --memory${RESET}"
+echo -e "3. Process directories: ${CYAN}mge extract-dir papers/ output/ --memory --recursive${RESET}"
+
+echo -e "\n${BOLD}Quick Commands:${RESET}"
+echo -e "  ${CYAN}mge --help${RESET}              # Show all commands"
+echo -e "  ${CYAN}mge memory --help${RESET}       # Memory graph operations"
+echo -e "  ${CYAN}mge config --edit${RESET}       # Edit configuration"
+
+if [ "$OLLAMA_AVAILABLE" = false ]; then
+    echo -e "\n${YELLOW}Note:${RESET} For enhanced AI features, install Ollama from https://ollama.ai"
+fi
+
+echo -e "\n${BOLD}Documentation:${RESET}"
+echo -e "  - Quick Start: ${CYAN}docs/quickstart.md${RESET}"
+echo -e "  - Architecture: ${CYAN}docs/architecture.md${RESET}"
+echo -e "  - Configuration: ${CYAN}docs/configuration.md${RESET}"
+
+echo -e "\nHappy extracting! 🚀"

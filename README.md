@@ -15,6 +15,14 @@ This project connects with:
 - [memory-graph](https://github.com/aaronsb/memory-graph) - Lets AI models access the knowledge
 - [memory-graph-interface](https://github.com/aaronsb/memory-graph-interface) - Lets humans explore and tune the graphs
 
+## Quick Setup
+
+```bash
+./setup.sh
+```
+
+This single command handles everything: virtual environment creation, dependency installation, and configuration. See [SETUP.md](SETUP.md) for manual setup or troubleshooting.
+
 ## How it works
 
 The basic idea is simple:
