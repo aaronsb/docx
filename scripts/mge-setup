@@ -372,7 +372,7 @@ fi
 if [ "$CREATE_CONFIG" = true ]; then
     # Determine default backend based on available services
     if [ "$OPENAI_KEY_SET" = true ]; then
-        DEFAULT_BACKEND="openai_multimodal"
+        DEFAULT_BACKEND="openai"
     elif [ "$OLLAMA_AVAILABLE" = true ]; then
         DEFAULT_BACKEND="ollama"
     else
@@ -412,16 +412,12 @@ intelligence:
       model: "llava:latest"
       base_url: "http://localhost:11434"
       timeout: 120
-    ollama_multimodal:
-      model: "llava:latest"
-      base_url: "http://localhost:11434"
-      timeout: 120
-    openai_multimodal:
+    openai:
       api_key: \${OPENAI_API_KEY}  # Use environment variable
       model: "gpt-4o-mini"  # Cost-effective model for document processing
-      timeout: 120
       max_tokens: 4096
       temperature: 0.1
+      timeout: 60
     memory_enhanced:
       use_context: true
       backend: "$DEFAULT_BACKEND"  # Use the best available backend
