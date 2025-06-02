@@ -1,4 +1,5 @@
 """Base classes for intelligence backends."""
+import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Any, Optional, Union, List
@@ -181,34 +182,113 @@ class IntelligenceManager:
         else:
             raise IntelligenceError(f"Unknown intelligence backend: {backend_name}")
     
-    def list_available_backends(self) -> List[str]:
+    def list_available_backends(self) -> Dict[str, Dict[str, Any]]:
         """List available intelligence backends.
         
         Returns:
-            List of backend names
+            Dictionary of backend names to backend info
         """
         # Check for availability of each backend
-        available = []
+        backends = {}
         
         # markitdown (added first as the preferred default)
         try:
             from pdf_manipulator.intelligence.markitdown import MarkitdownBackend
-            available.append("markitdown")
-        except ImportError:
-            pass
+            backends["markitdown"] = {
+                "available": True,
+                "description": "Direct markdown extraction without AI (supports PDF, DOCX, PPTX, images)"
+            }
+        except ImportError as e:
+            backends["markitdown"] = {
+                "available": False,
+                "description": "Direct markdown extraction without AI",
+                "error": str(e)
+            }
         
         # Ollama
         try:
             from pdf_manipulator.intelligence.ollama import OllamaBackend
-            available.append("ollama")
-        except ImportError:
-            pass
+            # Check if Ollama is actually running
+            try:
+                import requests
+                backend_config = self.config.get("intelligence", {}).get("backends", {}).get("ollama", {})
+                base_url = backend_config.get("base_url", "http://localhost:11434")
+                response = requests.get(f"{base_url}/api/tags", timeout=2)
+                if response.status_code == 200:
+                    backends["ollama"] = {
+                        "available": True,
+                        "description": "Ollama local AI backend with multimodal support"
+                    }
+                else:
+                    backends["ollama"] = {
+                        "available": False,
+                        "description": "Ollama local AI backend with multimodal support",
+                        "error": "Ollama server not responding"
+                    }
+            except Exception:
+                backends["ollama"] = {
+                    "available": False,
+                    "description": "Ollama local AI backend with multimodal support",
+                    "error": "Ollama server not running or not accessible"
+                }
+        except ImportError as e:
+            backends["ollama"] = {
+                "available": False,
+                "description": "Ollama local AI backend with multimodal support",
+                "error": f"Package not installed: {e}"
+            }
         
         # OpenAI
         try:
             from pdf_manipulator.intelligence.openai_multimodal import OpenAIMultimodalBackend
-            available.append("openai")
-        except ImportError:
-            pass
+            # Check if API key is configured
+            backend_config = self.config.get("intelligence", {}).get("backends", {}).get("openai", {})
+            api_key = backend_config.get("api_key") or os.getenv("OPENAI_API_KEY")
+            # Check if api_key is a valid value (not empty and not the placeholder)
+            if api_key and api_key.strip() and not api_key.startswith("${"):
+                backends["openai"] = {
+                    "available": True,
+                    "description": "OpenAI GPT-4V multimodal backend for advanced document analysis"
+                }
+            else:
+                backends["openai"] = {
+                    "available": False,
+                    "description": "OpenAI GPT-4V multimodal backend for advanced document analysis",
+                    "error": "OPENAI_API_KEY not configured in environment or config"
+                }
+        except ImportError as e:
+            backends["openai"] = {
+                "available": False,
+                "description": "OpenAI GPT-4V multimodal backend for advanced document analysis",
+                "error": f"Package not installed: {e}"
+            }
         
-        return available
+        # Memory Enhanced backend
+        try:
+            from pdf_manipulator.intelligence.memory_enhanced import MemoryEnhancedBackend
+            backends["memory_enhanced"] = {
+                "available": True,
+                "description": "Context-aware processing with memory graph integration"
+            }
+        except ImportError as e:
+            backends["memory_enhanced"] = {
+                "available": False,
+                "description": "Context-aware processing with memory graph integration",
+                "error": str(e)
+            }
+        
+        # Ollama Multimodal backend
+        try:
+            from pdf_manipulator.intelligence.ollama_multimodal import OllamaMultimodalBackend
+            backends["ollama_multimodal"] = {
+                "available": True,
+                "description": "Ollama multimodal backend for vision-language models"
+            }
+        except ImportError as e:
+            backends["ollama_multimodal"] = {
+                "available": False,
+                "description": "Ollama multimodal backend for vision-language models",
+                "error": str(e)
+            }
+        
+        return backends

@@ -1,10 +1,16 @@
 """Environment variable loader for PDF Manipulator."""
 import os
-import logging
 from pathlib import Path
 from typing import Dict, Optional
 
-logger = logging.getLogger(__name__)
+# Import the configured logger to ensure consistent logging
+try:
+    from .logging_config import get_logger
+    logger = get_logger('env_loader')
+except ImportError:
+    # Fallback to standard logging if logging_config is not available
+    import logging
+    logger = logging.getLogger(__name__)
 
 def load_dotenv(env_path: Optional[str] = None) -> Dict[str, str]:
     """Load environment variables from .env file.

@@ -6,13 +6,19 @@ from typing import Dict, Any, List, Optional, Union, Tuple
 import base64
 import re
 
+# Import the configured logger
+from ..utils.logging_config import get_logger
+
+# Module logger
+logger = get_logger('semantic_processor')
+
 # Text summarization for long texts
 try:
     from summa import summarizer
     SUMMARIZER_AVAILABLE = True
 except ImportError:
     SUMMARIZER_AVAILABLE = False
-    logging.warning("Summa library not found, text summarization disabled")
+    logger.warning("Summa library not found, text summarization disabled")
 
 from .base import IntelligenceBackend
 from .markitdown import MarkitdownBackend

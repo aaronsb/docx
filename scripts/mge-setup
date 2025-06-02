@@ -248,6 +248,57 @@ except Exception as e:
     exit(1)
 " 2>/dev/null; then
                 print_success "OpenAI API key validated successfully"
+                
+                # Offer to add to shell startup script
+                echo ""
+                print_status "Detecting shell environment..."
+                
+                # Detect the shell
+                SHELL_NAME=$(basename "$SHELL")
+                SHELL_RC=""
+                
+                case "$SHELL_NAME" in
+                    bash)
+                        SHELL_RC="$HOME/.bashrc"
+                        print_status "Detected bash shell"
+                        ;;
+                    zsh)
+                        SHELL_RC="$HOME/.zshrc"
+                        print_status "Detected zsh shell"
+                        ;;
+                    *)
+                        print_warning "Unknown shell: $SHELL_NAME"
+                        ;;
+                esac
+                
+                if [ -n "$SHELL_RC" ]; then
+                    read -p "Add OPENAI_API_KEY to $SHELL_RC for permanent access? [Y/n]: " add_to_shell
+                    case "$add_to_shell" in
+                        n|N)
+                            print_status "Skipping shell configuration"
+                            echo -e "${YELLOW}Note:${RESET} To use the API key in future sessions, add to your shell:"
+                            echo -e "  ${CYAN}export OPENAI_API_KEY='$openai_key'${RESET}"
+                            ;;
+                        *)
+                            # Check if already exists
+                            if grep -q "export OPENAI_API_KEY=" "$SHELL_RC" 2>/dev/null; then
+                                print_warning "OPENAI_API_KEY already exists in $SHELL_RC"
+                                echo "   To update it, edit $SHELL_RC manually"
+                            else
+                                # Add to shell RC file
+                                echo "" >> "$SHELL_RC"
+                                echo "# Memory Graph Extract - OpenAI API Key" >> "$SHELL_RC"
+                                echo "export OPENAI_API_KEY='$openai_key'" >> "$SHELL_RC"
+                                print_success "Added OPENAI_API_KEY to $SHELL_RC"
+                                echo -e "${CYAN}Run 'source $SHELL_RC' or start a new terminal for changes to take effect${RESET}"
+                            fi
+                            ;;
+                    esac
+                else
+                    echo -e "${YELLOW}Note:${RESET} Could not detect shell configuration file"
+                    echo -e "To use the API key in future sessions, add this to your shell startup script:"
+                    echo -e "  ${CYAN}export OPENAI_API_KEY='$openai_key'${RESET}"
+                fi
             else
                 print_warning "Could not validate API key - it may be incorrect or there may be a network issue"
             fi
@@ -366,9 +417,11 @@ intelligence:
       base_url: "http://localhost:11434"
       timeout: 120
     openai_multimodal:
+      api_key: \${OPENAI_API_KEY}  # Use environment variable
       model: "gpt-4o-mini"  # Cost-effective model for document processing
       timeout: 120
       max_tokens: 4096
+      temperature: 0.1
     memory_enhanced:
       use_context: true
       backend: "$DEFAULT_BACKEND"  # Use the best available backend

@@ -10,6 +10,7 @@ from pdf_manipulator.utils.config import (
     ConfigurationError, USER_CONFIG_DIR
 )
 from pdf_manipulator.utils.logging_config import configure_logging
+from pdf_manipulator.utils.env_loader import load_dotenv
 
 
 def create_cli_context(
@@ -34,6 +35,11 @@ def create_cli_context(
         console_level='DEBUG' if verbose else log_level,
         enable_file=not no_file_log
     )
+    
+    # Load environment variables after logging is configured
+    env_vars = load_dotenv()
+    if env_vars and verbose:
+        click.echo(f"Loaded {len(env_vars)} environment variables from .env file")
     
     context = {
         'verbose': verbose,

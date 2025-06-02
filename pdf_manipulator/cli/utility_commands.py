@@ -248,4 +248,12 @@ def manage_backends(ctx, list_backends: bool):
         if backend_config:
             click.echo("\nBackend configuration:")
             for key, value in backend_config.items():
-                click.echo(f"  {key}: {value}")
+                # Mask sensitive values
+                if key.lower() in ['api_key', 'token', 'secret', 'password'] and value and isinstance(value, str):
+                    if len(value) > 10:
+                        masked_value = f"{value[:5]}...{value[-4:]}"
+                    else:
+                        masked_value = "***"
+                    click.echo(f"  {key}: {masked_value}")
+                else:
+                    click.echo(f"  {key}: {value}")

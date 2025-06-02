@@ -59,11 +59,6 @@ cli.add_command(manage_backends)
 
 def main():
     """Main entry point."""
-    # Load environment variables from .env file
-    env_vars = load_dotenv()
-    if env_vars:
-        logger.debug(f"Loaded {len(env_vars)} environment variables from .env file")
-    
     # Run CLI with proper program name
     cli(prog_name='mge')
 

@@ -39,6 +39,7 @@ logger = get_logger("cli.process_commands")
 @click.option('--debug/--no-debug', default=False, help='Enable detailed debugging output')
 @click.option('--debug-dir', type=click.Path(), help='Directory to save debug information')
 @click.option('--timeout', type=int, default=60, help='Timeout for LLM requests in seconds')
+@click.option('--rebuild-memory', is_flag=True, help='Rebuild memory database from existing extracted data')
 @click.pass_context
 def process_document(
     ctx,
@@ -61,7 +62,8 @@ def process_document(
     progress: bool,
     debug: bool,
     debug_dir: Optional[str],
-    timeout: int
+    timeout: int,
+    rebuild_memory: bool
 ):
     """Process a document and extract semantic content.
     
@@ -82,6 +84,15 @@ def process_document(
       --timeout SECONDS     Adjust request timeout (default: 60s)
     
     The OpenAI backend now defaults to gpt-4o-mini for better cost efficiency.
+    
+    Memory Database Rebuild:
+      If you've already processed a document and want to rebuild the memory database
+      from the extracted data (without reprocessing the PDF), use:
+      
+      mge extract document.pdf --rebuild-memory
+      
+      This is useful when you've deleted the database but still have the extracted
+      markdown and JSON files in the output directory.
     """
     config = ctx.obj['config']
     verbose = ctx.obj.get('verbose', False)
@@ -112,6 +123,48 @@ def process_document(
     page_list = None
     if pages:
         page_list = _parse_page_range(pages)
+    
+    # Handle memory rebuild from existing data
+    if rebuild_memory:
+        # Check if extracted data exists
+        doc_name = path_obj.stem
+        doc_dir = Path(output_dir) / doc_name
+        contents_file = doc_dir / "markdown" / f"{doc_name}_contents.json"
+        
+        if not contents_file.exists():
+            reporter.error(f"No extracted data found at {contents_file}")
+            click.echo("Please process the document first before rebuilding memory.")
+            sys.exit(1)
+        
+        # Rebuild the memory database
+        try:
+            reporter.start(f"Rebuilding memory database from {contents_file}")
+            
+            # Create document processor to access rebuild method
+            document_processor = CoreDocumentProcessor(
+                ai_transcriber=None,
+                ocr_processor=None,
+                output_dir=output_dir,
+                memory_config=None  # Will be set in rebuild method
+            )
+            
+            # Rebuild memory from extracted data
+            memory_path = document_processor.rebuild_memory_from_extracted_data(
+                contents_file=contents_file,
+                domain=domain
+            )
+            
+            reporter.complete("Memory database rebuilt successfully")
+            click.echo(f"\nSemantic graph recreated: {memory_path}")
+            click.echo(f"Use 'mge memory info -d {memory_path}' to explore")
+            return
+            
+        except Exception as e:
+            reporter.error(f"Failed to rebuild memory: {e}")
+            if verbose:
+                import traceback
+                traceback.print_exc()
+            sys.exit(1)
     
     try:
         reporter.start(f"Processing {path}")

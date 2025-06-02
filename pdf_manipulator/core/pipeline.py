@@ -462,5 +462,123 @@ class DocumentProcessor:
                     json.dump(error_stats, f, indent=2)
             except:
                 pass  # Ignore errors in error handling
+    
+    def rebuild_memory_from_extracted_data(
+        self,
+        contents_file: Union[str, Path],
+        domain: str = 'pdf_processing'
+    ) -> Path:
+        """Rebuild memory database from previously extracted data.
+        
+        This method reads the contents.json file and associated markdown files
+        to reconstruct the memory database without reprocessing the PDF.
+        
+        Args:
+            contents_file: Path to the {document}_contents.json file
+            domain: Memory domain name for the database
+            
+        Returns:
+            Path to the recreated memory database
+            
+        Raises:
+            PDFManipulatorError: If reconstruction fails
+        """
+        contents_file = Path(contents_file)
+        
+        # Load the contents file
+        logger.info(f"Loading extracted data from {contents_file}")
+        with open(contents_file, 'r', encoding='utf-8') as f:
+            contents = json.load(f)
+        
+        # Extract document info
+        doc_name = contents.get('document_name', contents_file.stem.replace('_contents', ''))
+        doc_dir = contents_file.parent.parent
+        markdown_dir = contents_file.parent
+        
+        # Set up memory configuration
+        memory_path = doc_dir / "memory_graph.db"
+        
+        # Delete existing database if it exists
+        if memory_path.exists():
+            logger.info(f"Removing existing database at {memory_path}")
+            os.remove(memory_path)
+        
+        self.memory_config = MemoryConfig(
+            database_path=memory_path,
+            domain_name=domain,
+            domain_description=f"Semantic graph for {doc_name}",
+            enable_relationships=True,
+            enable_summaries=True
+        )
+        
+        # Initialize memory processor
+        mem_processor = MemoryProcessor(
+            memory_adapter=self.memory_config,
+            intelligence_processor=self.intelligence_processor
+        )
+        
+        # Reconstruct page content from markdown files
+        page_content = {}
+        pages_data = contents.get('pages', [])
+        
+        logger.info(f"Reconstructing content for {len(pages_data)} pages")
+        
+        for page_info in pages_data:
+            page_num = page_info.get('page_number', 0) - 1  # Convert to 0-based
+            
+            # Read markdown content
+            markdown_file = markdown_dir / page_info.get('markdown_file', f"page_{page_num:04d}.md")
+            if markdown_file.exists():
+                with open(markdown_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    # Remove the "# Page N" header if present
+                    lines = content.split('\n')
+                    if lines and lines[0].startswith('# Page '):
+                        content = '\n'.join(lines[2:])  # Skip header and empty line
+                    page_content[page_num] = content
+            else:
+                logger.warning(f"Markdown file not found: {markdown_file}")
+                page_content[page_num] = ""
+        
+        # Extract semantic analysis data
+        semantic_analysis = {}
+        for page_info in pages_data:
+            page_num = page_info.get('page_number', 0) - 1
+            if 'semantic_analysis' in page_info:
+                semantic_analysis[page_num] = page_info['semantic_analysis']
+        
+        # Prepare document metadata
+        document_metadata = {
+            'filename': doc_name + '.pdf',
+            'path': str(doc_dir.parent / (doc_name + '.pdf')),
+            'page_count': len(pages_data),
+            'has_toc': contents.get('has_toc', False),
+            'extracted_at': contents.get('extraction_date', datetime.now().isoformat()),
+            'backend_used': contents.get('backend', {}).get('type', 'unknown'),
+            'model_used': contents.get('backend', {}).get('model', 'unknown')
+        }
+        
+        # Create a minimal PDFDocument-like object for the memory processor
+        # Since we're rebuilding from extracted data, we don't need the actual PDF
+        class MockPDFDoc:
+            def __init__(self, page_count):
+                self.page_count = page_count
                 
-            raise PDFManipulatorError(f"Failed to process document: {e}")
+        mock_doc = MockPDFDoc(len(pages_data))
+        
+        # Process with memory
+        logger.info("Rebuilding memory graph from extracted data")
+        memory_results = mem_processor.process_document(
+            pdf_document=mock_doc,
+            page_content=page_content,
+            document_metadata=document_metadata,
+            semantic_analysis=semantic_analysis if semantic_analysis else None
+        )
+        
+        # Log results
+        if memory_results:
+            logger.info(f"Memory graph rebuilt successfully at {memory_path}")
+            logger.info(f"Created {memory_results.get('nodes_created', 0)} nodes")
+            logger.info(f"Created {memory_results.get('relationships_created', 0)} relationships")
+        
+        return memory_path

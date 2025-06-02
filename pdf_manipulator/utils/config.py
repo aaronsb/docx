@@ -106,6 +106,22 @@ def get_all_config_paths() -> ConfigPaths:
     )
 
 
+def _substitute_env_vars(config: Dict[str, Any]) -> None:
+    """Recursively substitute environment variables in config.
+    
+    Args:
+        config: Configuration dictionary to modify in place
+    """
+    for key, value in list(config.items()):
+        if isinstance(value, dict):
+            _substitute_env_vars(value)
+        elif isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+            env_var = value[2:-1]
+            env_value = os.getenv(env_var)
+            if env_value:
+                config[key] = env_value
+
+
 def load_config(path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
     """Load configuration from a YAML file.
     
@@ -114,7 +130,7 @@ def load_config(path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
             If not provided, uses the default search path.
             
     Returns:
-        Configuration dictionary
+        Configuration dictionary with environment variables substituted
         
     Raises:
         ConfigurationError: If configuration cannot be loaded
@@ -132,6 +148,9 @@ def load_config(path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
             
         if config is None:
             config = {}  # Handle empty config file
+        
+        # Substitute environment variables
+        _substitute_env_vars(config)
         
         return config
     
