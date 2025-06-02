@@ -209,8 +209,9 @@ if [ "$OPENAI_KEY_SET" = false ]; then
     read -p "Enter your OpenAI API key (or press Enter to skip): " openai_key
     
     if [ -n "$openai_key" ]; then
-        # Validate API key format (should start with sk- and be reasonable length)
-        if [[ "$openai_key" =~ ^sk-[a-zA-Z0-9]{48,}$ ]]; then
+        # Validate API key format (should start with sk- and have reasonable length)
+        # OpenAI keys can have different formats: sk-..., sk-proj-..., etc.
+        if [[ "$openai_key" =~ ^sk-[a-zA-Z0-9_-]{20,}$ ]]; then
             # Create or update .env file
             if [ -f "$ENV_FILE" ]; then
                 # Remove existing OPENAI_API_KEY if present
